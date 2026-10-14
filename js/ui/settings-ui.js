@@ -103,9 +103,9 @@ G.SettingsUI = (() => {
              <div><kbd>C</kbd></div><span>activar / desactivar rotación automática (AUTO)</span>
              <div><kbd>M</kbd></div><span>mostrar / ocultar minimapa radar</span>
              <div><kbd>Esc</kbd> o <kbd>P</kbd></div><span>pausa</span>
-             <div><kbd>1</kbd>–<kbd>3</kbd> / <kbd>R</kbd></div><span>elegir o cambiar cartas al subir de nivel</span>
-             <div><kbd>F2</kbd> o <kbd>\`</kbd></div><span>abrir / cerrar el Panel de Control Admin</span>
-           </div>`;
+              <div><kbd>1</kbd>–<kbd>3</kbd> / <kbd>R</kbd></div><span>elegir o cambiar cartas al subir de nivel</span>
+              ${G.DB && G.DB.isAdmin ? `<div><kbd>F2</kbd> o <kbd>\`</kbd></div><span>abrir / cerrar el Panel de Control Admin</span>` : ''}
+            </div>`;
     } else if (tab === 'acc') {
       renderAccount(box);
     } else {
@@ -133,29 +133,87 @@ G.SettingsUI = (() => {
     const st = G.DB.guest ? 'guest' : G.DB.syncState;
     const SYNC = { ok: 'Guardado en la nube', syncing: 'Guardando…', pending: 'Pendiente de subir (se sube al salir del juego)',
                    offline: 'Sin conexión: se subirá al volver', local: 'Guardado sólo en este navegador', guest: 'Invitado: guardado en este navegador' };
-    const isAdm = !!(G.Admin && G.Admin.enabled);
-    const adminBlock = section('Rol de Administrador (Admin)')
-      + `<div class="set-row"><div class="grow"><b>Activar Rol Admin</b><small>Habilita el botón ADMIN y el Panel de Control Omnipotente (tecla F2).</small></div>
-           <button class="btn small switch ${isAdm ? 'gold' : ''}" id="set-admin-role">${isAdm ? 'Sí' : 'No'}</button></div>`
-      + (isAdm ? `<div class="row" style="margin-top:8px"><button class="btn small gold" id="set-open-admin">${G.Icons.html('crown', 14)} Abrir Panel de Control Admin (F2)</button></div>` : '');
+    const canAdmin = !!(G.DB && G.DB.isAdmin);
+    const isAdm = canAdmin && !!(G.Admin && G.Admin.enabled);
+    const adminBlock = canAdmin
+      ? (section('Rol de Administrador (Admin)')
+        + `<div class="set-row"><div class="grow"><b>Activar Rol Admin</b><small>Habilita el botón ADMIN y el Panel de Control Omnipotente (tecla F2).</small></div>
+             <button class="btn small switch ${isAdm ? 'gold' : ''}" id="set-admin-role">${isAdm ? 'Sí' : 'No'}</button></div>`
+        + (isAdm ? `<div class="row" style="margin-top:8px"><button class="btn small gold" id="set-open-admin">${G.Icons.html('crown', 14)} Abrir Panel de Control Admin (F2)</button></div>` : ''))
+      : '';
 
     if (G.DB.guest) {
-      box.innerHTML = section('Cuenta', 'Estás jugando como <b>invitado</b>: tu progreso se guarda en este navegador y se conservará si creas una cuenta.')
-        + `<button class="btn gold" id="set-login">Crear cuenta o entrar</button>`
-        + adminBlock;
+      box.innerHTML = section('Cuenta', 'Estás jugando como <b>invitado</b>: tu progreso se guarda en este navegador y se conservará si creas una cuenta o vinculas con Google.')
+        + `<div class="row wrap" style="gap:8px">
+             <button class="btn gold" id="set-login">Crear cuenta o entrar</button>
+             ${G.DB.mode === 'cloud' ? `<button class="btn google" id="set-google-link">
+               <svg class="g-ico" width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+               <span>Vincular con Google</span>
+             </button>` : ''}
+           </div><p class="note" id="set-msg"></p>`;
       return;
     }
     const nick = G.Social.me ? G.Social.me.name : (G.DB.user || '');
+    const email = G.DB.email || '';
     const kind = G.DB.mode === 'local' ? 'Cuenta de este navegador' : G.DB.nameAccount ? 'Nombre y contraseña' : 'Google';
     box.innerHTML = section('Cuenta')
-      + `<div class="set-row"><div class="grow"><b>Apodo</b><small>Es único y no se puede cambiar.</small></div><span class="gold" translate="no">${esc(nick)}</span></div>`
+      + `<div class="set-row"><div class="grow"><b>Apodo</b><small>Tu nombre de entrenador en el juego.</small></div><span class="gold" translate="no">${esc(nick)}</span></div>`
+      + (email ? `<div class="set-row"><div class="grow"><b>Correo Google</b></div><span translate="no">${esc(email)}</span></div>` : '')
       + `<div class="set-row"><div class="grow"><b>Tipo de cuenta</b></div><span>${esc(kind)}</span></div>`
-      + `<div class="set-row"><div class="grow"><b>Partida</b></div><span>${esc(SYNC[st] || st)}</span></div>`
+      + `<div class="set-row"><div class="grow"><b>Partida</b><small>${esc(SYNC[st] || st)}</small></div>
+           ${G.DB.mode === 'cloud' ? `<button class="btn small" id="set-sync-now">Sincronizar ahora</button>` : ''}</div>`
       + `<div class="row wrap" style="gap:8px;margin-top:12px">
-           <button class="btn" id="set-logout">Cerrar sesión</button>
-           <button class="btn danger" id="set-delete">Borrar cuenta</button>
+           <button class="btn small" id="set-change-pass">Cambiar contraseña</button>
+           <button class="btn small" id="set-logout">Cerrar sesión</button>
+           <button class="btn small danger" id="set-delete">Borrar cuenta</button>
          </div><p class="note" id="set-msg"></p>`
       + adminBlock;
+  }
+
+  function openChangePassModal() {
+    const el = document.createElement('section');
+    el.className = 'scr dim';
+    el.style.zIndex = 75;
+    el.innerHTML = `<div class="box" style="max-width:390px;width:100%">
+      <h3>Cambiar contraseña</h3>
+      <p class="sub">Actualiza la contraseña de tu cuenta en la nube.</p>
+      <label>Contraseña actual</label>
+      <input class="field" id="cp-old" type="password" maxlength="64" placeholder="••••••••">
+      <label>Nueva contraseña</label>
+      <input class="field" id="cp-new" type="password" maxlength="64" placeholder="Mínimo 6 caracteres">
+      <label>Confirmar nueva contraseña</label>
+      <input class="field" id="cp-new2" type="password" maxlength="64" placeholder="Repite la nueva contraseña">
+      <p class="err" id="cp-err"></p>
+      <div class="row end" style="margin-top:12px">
+        <button class="btn ghost" type="button" data-a="no">Cancelar</button>
+        <button class="btn gold" type="button" data-a="yes">Guardar contraseña</button>
+      </div>
+    </div>`;
+    document.body.appendChild(el);
+    if (G.I18n && G.I18n.walk) G.I18n.walk(el);
+    const oldInp = el.querySelector('#cp-old');
+    const newInp = el.querySelector('#cp-new');
+    const new2Inp = el.querySelector('#cp-new2');
+    const errEl = el.querySelector('#cp-err');
+    const yesBtn = el.querySelector('[data-a=yes]');
+    el.querySelector('[data-a=no]').onclick = () => el.remove();
+    yesBtn.onclick = async () => {
+      errEl.textContent = '';
+      if (newInp.value !== new2Inp.value) {
+        errEl.textContent = G.T('Las contraseñas no coinciden.');
+        return;
+      }
+      yesBtn.disabled = true;
+      const r = await G.DB.changePassword(oldInp.value, newInp.value);
+      yesBtn.disabled = false;
+      if (!r.ok) {
+        errEl.textContent = r.error;
+        return;
+      }
+      el.remove();
+      G.UI.toast(G.T('Contraseña actualizada correctamente'));
+    };
+    setTimeout(() => oldInp.focus(), 50);
   }
 
   function wire(box) {
@@ -166,10 +224,30 @@ G.SettingsUI = (() => {
     const full = $('set-full'); if (full) full.onclick = toggleFull;
     box.querySelectorAll('[data-lang]').forEach(b => { b.onclick = () => { if (b.dataset.lang !== G.I18n.lang) G.I18n.set(b.dataset.lang); }; });
     const admRole = $('set-admin-role');
-    if (admRole && G.Admin) admRole.onclick = () => { G.Admin.setEnabled(!G.Admin.enabled); render(); };
+    if (admRole && G.Admin && G.DB && G.DB.isAdmin) admRole.onclick = () => { G.Admin.setEnabled(!G.Admin.enabled); render(); };
     const admOpen = $('set-open-admin');
-    if (admOpen && G.AdminUI) admOpen.onclick = () => { close(); G.AdminUI.open(); };
+    if (admOpen && G.AdminUI && G.DB && G.DB.isAdmin) admOpen.onclick = () => { close(); G.AdminUI.open(); };
     const lo = $('set-login'); if (lo) lo.onclick = () => { close(); leave(); };
+    const gLink = $('set-google-link');
+    if (gLink) gLink.onclick = async () => {
+      gLink.disabled = true;
+      const r = await G.DB.loginWithGoogle();
+      gLink.disabled = false;
+      if (!r.ok) { if (r.error && $('set-msg')) $('set-msg').textContent = r.error; return; }
+      G.UI.refreshCoins && G.UI.refreshCoins();
+      G.UI.toast(G.T('Cuenta vinculada con Google'));
+      render();
+    };
+    const syncBtn = $('set-sync-now');
+    if (syncBtn) syncBtn.onclick = async () => {
+      syncBtn.disabled = true;
+      await G.DB.flush();
+      syncBtn.disabled = false;
+      G.UI.toast(G.T('Guardado en la nube'));
+      render();
+    };
+    const chPass = $('set-change-pass');
+    if (chPass) chPass.onclick = () => openChangePassModal();
     const out = $('set-logout'); if (out) out.onclick = () => { close(); leave(); };
     const del = $('set-delete');
     if (del) del.onclick = async () => {

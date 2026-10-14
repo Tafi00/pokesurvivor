@@ -793,5 +793,35 @@ G.I18n.add('vi', {
   'Ningún jugador libre ahora mismo. Usa "Abrir pestaña Co-op" arriba para probar en otra pestaña.':
     'Chưa có người chơi rảnh lúc này. Hãy nhấn "Mở tab Co-op thứ 2" ở trên để test chơi chung ngay trên máy!',
   'Necesitas al menos un compañero en la sala (puedes pulsar "Abrir pestaña Co-op" arriba para unirte desde otra pestaña).':
-    'Cần ít nhất 2 người trong phòng để bắt đầu (bạn có thể nhấn "Mở tab Co-op thứ 2" ở trên để vào thêm từ tab khác).'
+    'Cần ít nhất 2 người trong phòng để bắt đầu (bạn có thể nhấn "Mở tab Co-op thứ 2" ở trên để vào thêm từ tab khác).',
+
+  // Xác thực tài khoản & Google Auth
+  'Nombre o correo': 'Tên tài khoản hoặc Email',
+  'Nombre (3-16 letras o números)': 'Tên tài khoản (3-16 chữ cái hoặc số)',
+  'Tu apodo o correo': 'Biệt danh hoặc địa chỉ Gmail',
+  'Ej: Pikachu_99': 'VD: Pikachu_99',
+  'Mostrar u ocultar contraseña': 'Hiện hoặc ẩn mật khẩu',
+  'Confirmar contraseña': 'Xác nhận mật khẩu',
+  'Repite tu contraseña': 'Nhập lại mật khẩu',
+  'Recordar sesión en este dispositivo': 'Ghi nhớ đăng nhập trên thiết bị này',
+  'o continúa con': 'hoặc tiếp tục với',
+  'Escribe tu nombre o correo.': 'Vui lòng nhập tên tài khoản hoặc email.',
+  'Las contraseñas no coinciden.': 'Mật khẩu xác nhận không khớp.',
+  'Estás jugando como <b>invitado</b>: tu progreso se guarda en este navegador y se conservará si creas una cuenta o vinculas con Google.':
+    'Bạn đang chơi với tư cách <b>Khách</b>: tiến trình được lưu trên trình duyệt này và sẽ được giữ nguyên khi bạn tạo tài khoản hoặc liên kết với Google.',
+  'Vincular con Google': 'Liên kết với Google',
+  'Cuenta vinculada con Google': 'Đã liên kết tài khoản với Google!',
+  'Tu nombre de entrenador en el juego.': 'Tên Huấn luyện viên của bạn trong game.',
+  'Correo Google': 'Email Google',
+  'Sincronizar ahora': 'Đồng bộ ngay',
+  'Cambiar contraseña': 'Đổi mật khẩu',
+  'Actualiza la contraseña de tu cuenta en la nube.': 'Cập nhật mật khẩu cho tài khoản Đám mây của bạn.',
+  'Contraseña actual': 'Mật khẩu hiện tại',
+  'Nueva contraseña': 'Mật khẩu mới',
+  'Mínimo 6 caracteres': 'Tối thiểu 6 ký tự',
+  'Confirmar nueva contraseña': 'Xác nhận mật khẩu mới',
+  'Repite la nueva contraseña': 'Nhập lại mật khẩu mới',
+  'Guardar contraseña': 'Lưu mật khẩu',
+  'Contraseña actualizada correctamente': 'Đã cập nhật mật khẩu thành công!'
 });
+

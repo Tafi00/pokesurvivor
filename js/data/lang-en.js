@@ -714,5 +714,35 @@ G.I18n.add({
   'Ningún jugador libre ahora mismo. Usa "Abrir pestaña Co-op" arriba para probar en otra pestaña.':
     'No free players right now. Use "Open Co-op Tab" above to test in another tab.',
   'Necesitas al menos un compañero en la sala (puedes pulsar "Abrir pestaña Co-op" arriba para unirte desde otra pestaña).':
-    'You need at least one teammate in the room (click "Open Co-op Tab" above to join from another tab).'
+    'You need at least one teammate in the room (click "Open Co-op Tab" above to join from another tab).',
+
+  // Auth & Google Auth
+  'Nombre o correo': 'Username or Email',
+  'Nombre (3-16 letras o números)': 'Username (3-16 letters or numbers)',
+  'Tu apodo o correo': 'Your nickname or email',
+  'Ej: Pikachu_99': 'e.g. Pikachu_99',
+  'Mostrar u ocultar contraseña': 'Show or hide password',
+  'Confirmar contraseña': 'Confirm password',
+  'Repite tu contraseña': 'Repeat your password',
+  'Recordar sesión en este dispositivo': 'Remember session on this device',
+  'o continúa con': 'or continue with',
+  'Escribe tu nombre o correo.': 'Please enter your username or email.',
+  'Las contraseñas no coinciden.': 'Passwords do not match.',
+  'Estás jugando como <b>invitado</b>: tu progreso se guarda en este navegador y se conservará si creas una cuenta o vinculas con Google.':
+    'You are playing as a <b>guest</b>: your progress is saved in this browser and will be kept if you create an account or link with Google.',
+  'Vincular con Google': 'Link with Google',
+  'Cuenta vinculada con Google': 'Account linked with Google',
+  'Tu nombre de entrenador en el juego.': 'Your trainer name in the game.',
+  'Correo Google': 'Google Email',
+  'Sincronizar ahora': 'Sync now',
+  'Cambiar contraseña': 'Change password',
+  'Actualiza la contraseña de tu cuenta en la nube.': 'Update the password for your cloud account.',
+  'Contraseña actual': 'Current password',
+  'Nueva contraseña': 'New password',
+  'Mínimo 6 caracteres': 'Minimum 6 characters',
+  'Confirmar nueva contraseña': 'Confirm new password',
+  'Repite la nueva contraseña': 'Repeat new password',
+  'Guardar contraseña': 'Save password',
+  'Contraseña actualizada correctamente': 'Password updated successfully'
 });
+

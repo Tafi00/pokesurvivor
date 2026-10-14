@@ -150,6 +150,32 @@ label { display: block; font-size: 14px; color: var(--muted); margin: 8px 0 4px;
   font-size: 17px; outline: none;
 }
 .field:focus { border-color: var(--edge); }
+.pass-wrap { position: relative; display: flex; align-items: center; }
+.pass-wrap .field { padding-right: 42px; }
+.pass-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; color: var(--muted); cursor: pointer;
+  font-size: 16px; padding: 4px 8px; border-radius: 6px; line-height: 1;
+}
+.pass-eye:hover { color: #fff; background: rgba(255,255,255,.1); }
+.remember-row {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 10px 0 2px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none;
+}
+.remember-row input { width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; }
+.auth-sep {
+  display: flex; align-items: center; gap: 10px;
+  margin: 12px 0 10px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+}
+.auth-sep::before, .auth-sep::after {
+  content: ''; flex: 1; height: 1px; background: rgba(244,248,255,.2);
+}
+.btn.google {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: linear-gradient(180deg, #ffffff, #e9eef7);
+  color: #1f2430; text-shadow: none; border-color: #d6e2f8;
+}
+.btn.google .g-ico { flex-shrink: 0; display: block; }
 .err { color: #ffb0b8; min-height: 20px; font-size: 14px; margin: 8px 0 0; }
 .note { color: var(--muted); font-size: 13px; margin-top: 14px; }
 

@@ -1,4 +1,4 @@
-/* ============ login.js — inicio: entrar, crear cuenta o invitado ============ */
+/* ============ login.js — inicio: entrar, crear cuenta, Google o invitado ============ */
 G.LoginUI = (() => {
   const $ = G.UI.$;
   let mode = 'login';
@@ -7,24 +7,65 @@ G.LoginUI = (() => {
     document.querySelectorAll('#scr-login .tab').forEach(t => {
       t.onclick = () => setMode(t.dataset.tab);
     });
+
+    const eyeBtn = $('btn-eye');
+    if (eyeBtn) {
+      eyeBtn.onclick = () => {
+        const p1 = $('f-pass'), p2 = $('f-pass2');
+        const show = p1.type === 'password';
+        p1.type = show ? 'text' : 'password';
+        if (p2) p2.type = show ? 'text' : 'password';
+        eyeBtn.textContent = show ? '🙈' : '👁';
+      };
+    }
+
     $('login-form').onsubmit = async e => {
       e.preventDefault();
       $('login-err').textContent = '';
+      const uVal = ($('f-user').value || '').trim();
+      const pVal = $('f-pass').value || '';
+      const p2El = $('f-pass2');
+
+      if (!uVal) {
+        $('login-err').textContent = G.T('Escribe tu nombre o correo.');
+        $('f-user').focus();
+        return;
+      }
+      if (mode === 'register' && p2El && pVal !== p2El.value) {
+        $('login-err').textContent = G.T('Las contraseñas no coinciden.');
+        p2El.focus();
+        return;
+      }
+
+      const remEl = $('f-remember');
+      if (remEl && G.DB.fb && G.DB.fb.auth && G.DB.fb.auth.setPersistence) {
+        await G.DB.fb.auth.setPersistence(remEl.checked ? 'local' : 'session');
+      }
+
       $('btn-auth').disabled = true;
       const fn = mode === 'login' ? G.DB.login : G.DB.register;
-      const r = await fn($('f-user').value, $('f-pass').value);
+      const r = await fn(uVal, pVal);
       $('btn-auth').disabled = false;
       if (!r.ok) { $('login-err').textContent = r.error; return; }
       $('f-pass').value = '';
+      if (p2El) p2El.value = '';
       G.Flow.afterLogin();
     };
+
     $('btn-guest').onclick = () => { G.DB.playAsGuest(); G.Flow.afterLogin(); };
     $('btn-google').onclick = async () => {
       $('login-err').textContent = '';
+      const remEl = $('f-remember');
+      if (remEl && G.DB.fb && G.DB.fb.auth && G.DB.fb.auth.setPersistence) {
+        await G.DB.fb.auth.setPersistence(remEl.checked ? 'local' : 'session');
+      }
       $('btn-google').disabled = true;
       const r = await G.DB.loginWithGoogle();
       $('btn-google').disabled = false;
-      if (!r.ok) { $('login-err').textContent = r.error; return; }
+      if (!r.ok) {
+        if (r.error) $('login-err').textContent = r.error;
+        return;
+      }
       G.Flow.afterLogin();
     };
   }
@@ -43,10 +84,15 @@ G.LoginUI = (() => {
   function setMode(m) {
     mode = m;
     document.querySelectorAll('#scr-login .tab').forEach(t => t.classList.toggle('on', t.dataset.tab === m));
-    $('btn-auth').textContent = m === 'login' ? 'Entrar' : 'Crear cuenta';
+    $('btn-auth').textContent = G.T(m === 'login' ? 'Entrar' : 'Crear cuenta');
     $('f-pass').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+    const wrap2 = $('wrap-pass2');
+    if (wrap2) wrap2.classList.toggle('hidden', m !== 'register');
+    const lblUser = $('lbl-user');
+    if (lblUser) lblUser.textContent = G.T(m === 'login' ? 'Nombre o correo' : 'Nombre (3-16 letras o números)');
+    $('f-user').maxLength = m === 'login' ? 64 : 16;
+    $('f-user').placeholder = G.T(m === 'login' ? 'Tu apodo o correo' : 'Ej: Pikachu_99');
     $('login-err').textContent = '';
-    // Sólo se pregunta si quedan plazas al ir a crear cuenta (cada llamada al Worker cuenta).
     if (m === 'register' && G.DB.mode === 'cloud' && G.Signups) G.Signups.check().then(applySignups);
   }
 
@@ -59,13 +105,13 @@ G.LoginUI = (() => {
     note.classList.toggle('hidden', open);
     if (!open) note.textContent = 'Este mes se han llenado las plazas de cuentas nuevas: vuelven el 1 de ' + G.Signups.nextMonthName() +
       '. Si ya tienes cuenta, entra normal. Si no, juega como invitado.';
-    $('btn-google').textContent = open ? 'Entrar con Google' : 'Entrar con Google (si ya tienes cuenta)';
+    const gTxt = $('btn-google-txt') || $('btn-google');
+    if (gTxt) gTxt.textContent = G.T(open ? 'Entrar con Google' : 'Entrar con Google (si ya tienes cuenta)');
   }
 
   function open() {
     G.UI.chrome(false);
     G.UI.show('scr-login');
-    // Selector de idioma estilo PMD (.seg) al pie de la ventana de inicio
     let lBar = $('login-langs');
     if (!lBar) {
       lBar = document.createElement('div');
@@ -81,16 +127,15 @@ G.LoginUI = (() => {
       b.onclick = () => { if (b.dataset.lang !== G.I18n.lang) G.I18n.set(b.dataset.lang); };
     });
 
-    // Abiertas: no se pregunta hasta ir a "Crear cuenta". Cerradas (con la pestaña
-    // escondida): se vuelve a preguntar (va con caché de 30 min) para reabrir a tiempo.
     if (G.DB.mode === 'cloud' && G.Signups) {
       if (G.Signups.closed) G.Signups.check().then(applySignups); else applySignups(true);
     }
     if (!G.DB.storageOk) $('login-err').textContent = 'Este navegador no deja guardar datos: juega como invitado.';
     $('btn-google').classList.toggle('hidden', G.DB.mode !== 'cloud');
-    $('login-mode').textContent = modeNote();
+    $('login-mode').textContent = G.T(modeNote());
     setTimeout(() => $('f-user').focus(), 50);
   }
 
   return { init, open };
 })();
+

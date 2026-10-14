@@ -670,14 +670,46 @@ G.DB = (() => {
 
   async function loginWithGoogle() {
     if (mode !== 'cloud') return { ok: false, error: 'Entrar con Google necesita la versión publicada del juego.' };
+    const guestBackup = guest && save && save.partner ? JSON.parse(JSON.stringify(save)) : null;
     try {
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       if (cred.additionalUserInfo && cred.additionalUserInfo.isNewUser && G.Signups) G.Signups.markNew(cred.user.uid);
       await openCloud(cred.user, { name: displayNameOf(cred.user) });
+      if (guestBackup && !save.partner) {
+        save = migrate(merge(save, guestBackup), save.name || displayNameOf(cred.user));
+        commit(true);
+      }
       remove(K_GUEST_SES);
+      remove(K_SES);
       if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true, isNew: !save.partner };
     } catch (e) { return { ok: false, error: authError(e) }; }
+  }
+
+  async function changePassword(oldPass, newPass) {
+    if (guest || !key) return { ok: false, error: 'No hay cuenta activa.' };
+    const min = mode === 'cloud' ? 6 : 4;
+    if ((newPass || '').length < min) return { ok: false, error: `La contraseña debe tener al menos ${min} caracteres.` };
+    if (mode === 'local') {
+      const accs = read(K_ACC) || {};
+      const acc = accs[key];
+      if (!acc || acc.hash !== await hash(oldPass || '', acc.salt)) {
+        return { ok: false, error: 'Usuario o contraseña incorrectos.' };
+      }
+      const salt = randomSalt();
+      acc.salt = salt;
+      acc.hash = await hash(newPass, salt);
+      write(K_ACC, accs);
+      return { ok: true };
+    }
+    try {
+      const cu = auth && auth.currentUser;
+      if (!cu || !cu.changePassword) return { ok: false, error: 'Operación no disponible.' };
+      await cu.changePassword(oldPass || '', newPass);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: authError(e) };
+    }
   }
 
   /** Cambia el nombre que se ve en la partida (al elegir apodo). */
@@ -799,7 +831,7 @@ G.DB = (() => {
       for (const fn of leaveHooks) await fn('delete');
       await docRef().delete();
       remove(K_CLOUD + uid);
-      await auth.currentUser.delete();
+      await auth.currentUser.delete(pass);
       user = key = save = uid = null;
       if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true };
@@ -842,7 +874,7 @@ G.DB = (() => {
   }
 
   return {
-    ready, register, login, loginWithGoogle, playAsGuest, logout, commit, deleteAccount, flush: pushNow,
+    ready, register, login, loginWithGoogle, changePassword, playAsGuest, logout, commit, deleteAccount, flush: pushNow,
     owns, grant, ownsShiny, grantShiny, merge, setName, upgradesOf, forkTabIdentity,
     onSync(fn) { listeners.add(fn); },
     onLeave(fn) { leaveHooks.push(fn); },
@@ -852,6 +884,10 @@ G.DB = (() => {
     get online() { return mode === 'cloud' && !!uid && !!save; },
     /** ¿La cuenta es de usuario y contraseña (no de Google)? */
     get nameAccount() { return nameAccount(); },
+    get email() {
+      const em = auth && auth.currentUser && auth.currentUser.email;
+      return (em && !em.endsWith('@' + NAME_DOMAIN) && !em.endsWith('@local') && !em.endsWith('@guest.local')) ? em : '';
+    },
     get isAdmin() { return isAdminAccount(); },
     get mode() { return mode; },
     get localReason() { return localReason; },

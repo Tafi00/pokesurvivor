@@ -628,24 +628,52 @@ G.FIREBASE_CONFIG = {
   }
   loadInitialAuth();
 
-  function setAuthUser(u) {
+  function setAuthUser(u, remember = true) {
     if (u) {
+      const uidVal = u.uid;
       currentUser = {
-        uid: u.uid,
-        email: u.email || (u.uid + '@local'),
+        uid: uidVal,
+        email: u.email || (uidVal + '@local'),
         displayName: u.displayName || 'Trainer',
+        photoURL: u.photoURL || '',
+        provider: u.provider || (String(u.email || '').endsWith('@jugadores.pokesurvivor.net') ? 'password' : 'google'),
         role: u.role || (u.isAdmin ? 'admin' : 'user'),
         isAdmin: !!u.isAdmin,
-        getIdToken: () => Promise.resolve('local-token-' + u.uid),
-        reauthenticateWithCredential: () => Promise.resolve(),
-        reauthenticateWithPopup: () => Promise.resolve(),
-        delete: async () => { setAuthUser(null); }
+        sessionToken: u.sessionToken || '',
+        getIdToken: () => Promise.resolve(u.sessionToken || ('local-token-' + uidVal)),
+        reauthenticateWithCredential: async cred => {
+          const pass = cred && cred.pass !== undefined ? cred.pass : '';
+          const r = await sendCmd({ t: 'auth:reauth', uid: uidVal, pass }, true);
+          if (!r.ok && !r.localOnly) throw { code: r.code || 'auth/wrong-password' };
+        },
+        reauthenticateWithPopup: async () => Promise.resolve(),
+        changePassword: async (oldPass, newPass) => {
+          const r = await sendCmd({ t: 'auth:change-pass', uid: uidVal, oldPass, newPass }, true);
+          if (!r.ok && !r.localOnly) throw { code: r.code || 'auth/wrong-password' };
+          return r;
+        },
+        delete: async pass => {
+          const r = await sendCmd({ t: 'auth:delete', uid: uidVal, pass }, true);
+          if (!r.ok && !r.localOnly) throw { code: r.code || 'auth/wrong-password' };
+          setAuthUser(null);
+        }
       };
       try {
-        const snap = { uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName, role: currentUser.role, isAdmin: currentUser.isAdmin };
+        const snap = {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+          provider: currentUser.provider,
+          role: currentUser.role,
+          isAdmin: currentUser.isAdmin,
+          sessionToken: currentUser.sessionToken
+        };
         sessionStorage.setItem(SS_AUTH, JSON.stringify(snap));
-        if (!/[?&]newtab=1\b/.test(location.search)) {
+        if (remember !== false && !/[?&]newtab=1\b/.test(location.search)) {
           localStorage.setItem(LS_AUTH, JSON.stringify(snap));
+        } else if (remember === false) {
+          localStorage.removeItem(LS_AUTH);
         }
       } catch (e) {}
       wsSendRaw({ t: 'hello', uid: currentUser.uid });
@@ -660,10 +688,97 @@ G.FIREBASE_CONFIG = {
     if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
   }
 
+  function openGoogleAuthPopupOrModal() {
+    return new Promise((resolve, reject) => {
+      const lang = (G.I18n && G.I18n.lang) || 'vi';
+      const url = `/auth/google?lang=${encodeURIComponent(lang)}`;
+      const w = 450, h = 620;
+      const left = Math.max(0, Math.round((window.screen.width - w) / 2));
+      const top = Math.max(0, Math.round((window.screen.height - h) / 2));
+      try { localStorage.removeItem('ps.google.auth.result'); } catch (e) {}
+
+      let settled = false;
+      let popup = null;
+      let modalEl = null;
+      let timer = null;
+
+      const cleanup = () => {
+        window.removeEventListener('message', onMsg);
+        window.removeEventListener('storage', onStorage);
+        if (timer) clearInterval(timer);
+        if (modalEl) { try { modalEl.remove(); } catch (e) {} modalEl = null; }
+      };
+
+      const finish = data => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try { if (popup && !popup.closed) popup.close(); } catch (e) {}
+        if (data && data.ok && data.user) {
+          resolve(data);
+        } else {
+          reject({ code: (data && data.code) || 'auth/popup-closed-by-user', message: (data && data.error) || '' });
+        }
+      };
+
+      const onMsg = e => {
+        if (e && e.data && e.data.type === 'ps:google-auth') {
+          finish(e.data);
+        }
+      };
+
+      const onStorage = e => {
+        if (e && e.key === 'ps.google.auth.result' && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed && parsed.type === 'ps:google-auth') finish(parsed);
+          } catch (err) {}
+        }
+      };
+
+      window.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStorage);
+
+      try {
+        popup = window.open(url, 'ps_google_auth', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+      } catch (e) { popup = null; }
+
+      if (!popup) {
+        // Fallback: si el navegador bloqueó el popup (p.ej. móvil), abrir modal integrado con iframe
+        modalEl = document.createElement('div');
+        modalEl.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(4,9,24,.82);display:flex;align-items:center;justify-content:center;padding:12px;';
+        modalEl.innerHTML = `<div style="position:relative;width:min(440px,100%);height:min(620px,92vh);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.75);background:#fff">
+          <iframe src="${url}" style="width:100%;height:100%;border:0"></iframe>
+        </div>`;
+        modalEl.onclick = e => { if (e.target === modalEl) finish({ ok: false, code: 'auth/popup-closed-by-user' }); };
+        document.body.appendChild(modalEl);
+      } else {
+        timer = setInterval(() => {
+          try {
+            const raw = localStorage.getItem('ps.google.auth.result');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.type === 'ps:google-auth') { finish(parsed); return; }
+            }
+          } catch (e) {}
+          if (popup.closed) {
+            setTimeout(() => {
+              if (!settled) finish({ ok: false, code: 'auth/popup-closed-by-user' });
+            }, 250);
+          }
+        }, 300);
+      }
+    });
+  }
+
+  let rememberPref = true;
   const authApi = {
     get currentUser() { return currentUser; },
     languageCode: 'vi',
-    setPersistence: () => Promise.resolve(),
+    setPersistence: mode => {
+      rememberPref = mode !== 'session';
+      return Promise.resolve();
+    },
     onAuthStateChanged(cb) {
       authListeners.add(cb);
       setTimeout(() => cb(currentUser), 0);
@@ -679,9 +794,9 @@ G.FIREBASE_CONFIG = {
         const uid = 'u_' + Math.random().toString(36).slice(2, 10);
         users[em] = { uid, email: em, pass };
         saveLocalCache();
-        setAuthUser({ uid, email: em, role: 'user', isAdmin: false });
+        setAuthUser({ uid, email: em, provider: 'password', role: 'user', isAdmin: false }, rememberPref);
       } else {
-        setAuthUser(res.user);
+        setAuthUser(res.user, rememberPref);
       }
       return { user: currentUser, additionalUserInfo: { isNewUser: true } };
     },
@@ -691,7 +806,7 @@ G.FIREBASE_CONFIG = {
       const res = await sendCmd({ t: 'auth:login', email: em, pass }, true);
       if (!res.ok && res.code) {
         if (users[em] && users[em].pass === pass) {
-          setAuthUser(users[em]);
+          setAuthUser(users[em], rememberPref);
           return { user: currentUser, additionalUserInfo: { isNewUser: false } };
         }
         throw { code: res.code };
@@ -699,17 +814,18 @@ G.FIREBASE_CONFIG = {
       if (res.localOnly) {
         const u = users[em];
         if (!u || u.pass !== pass) throw { code: 'auth/invalid-credential' };
-        setAuthUser(u);
+        setAuthUser(u, rememberPref);
       } else {
-        setAuthUser(res.user);
+        setAuthUser(res.user, rememberPref);
       }
       return { user: currentUser, additionalUserInfo: { isNewUser: false } };
     },
     async signInWithPopup() {
-      const rand = Math.floor(100 + Math.random() * 900);
-      const uid = 'google_' + rand;
-      setAuthUser({ uid, email: uid + '@google.local', displayName: 'Trainer' + rand, role: 'user', isAdmin: false });
-      return { user: currentUser, additionalUserInfo: { isNewUser: true } };
+      await initPromise;
+      const res = await openGoogleAuthPopupOrModal();
+      setAuthUser(res.user, rememberPref);
+      await sendCmd({ t: 'hello', uid: res.user.uid }, true);
+      return { user: currentUser, additionalUserInfo: { isNewUser: !!res.isNewUser } };
     },
     async signOut() {
       setAuthUser(null);
