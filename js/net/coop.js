@@ -39,7 +39,7 @@ G.Coop = (() => {
   // todo se para para todos. Antes los enemigos se quedaban quietos y los demás
   // seguían jugando con una ventaja enorme.
   let hostAway = false, stalled = false, lastHostAt = 0;
-  const STALL_MS = 2500;
+  const STALL_MS = 4500;
   let members = [];
 
   // ---------------- escalado de dificultad ----------------
@@ -280,12 +280,14 @@ G.Coop = (() => {
   /** Invitado: se para (o sigue) según si el anfitrión está. */
   function updateAway() { if (api.away) api.away(hostAway || stalled ? nameOf(hostUid) : null); }
 
-  // Anfitrión: al irse de la pestaña avisa a todos al momento (después ya no
-  // podrá mandar nada) y al volver, que sigue.
+  // Con el bucle en segundo plano activo (game.js), cambiar de pestaña para probar
+  // cooperativo en el mismo PC no congela la partida a los demás jugadores.
   document.addEventListener('visibilitychange', () => {
     if (!active || !host) return;
-    emit(['ha', document.hidden ? 1 : 0]);
-    flushAll();
+    if (!document.hidden) {
+      emit(['ha', 0]);
+      flushAll();
+    }
   });
 
   function onHostFrame(msg) {

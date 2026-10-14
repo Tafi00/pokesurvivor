@@ -161,7 +161,18 @@ G.FIREBASE_CONFIG = {
     }
     if (msg.t === 'fs:set') {
       const p = norm(msg.path);
-      docs[p] = msg.val;
+      if (msg.merge && docs[p] && typeof docs[p] === 'object') {
+        docs[p] = Object.assign({}, docs[p], msg.val);
+      } else {
+        docs[p] = msg.val;
+      }
+      saveLocalCache();
+      notifyFsPath(p);
+      return;
+    }
+    if (msg.t === 'fs:update') {
+      const p = norm(msg.path);
+      docs[p] = applyPatchToDoc(docs[p], msg.patch);
       saveLocalCache();
       notifyFsPath(p);
       return;
@@ -179,9 +190,19 @@ G.FIREBASE_CONFIG = {
       notifyAllRtdb(p);
       return;
     }
+    if (msg.t === 'rtdb:update') {
+      const p = norm(msg.path);
+      updateRtdbLocal(p, msg.patch);
+      notifyAllRtdb(p);
+      return;
+    }
     if (msg.t === 'net:direct') {
+      const myUid = (G.DB && G.DB.fb && G.DB.fb.uid) || (currentUser && currentUser.uid) || null;
+      if (msg.to && myUid && msg.to !== myUid) return;
+      const env = msg.payload !== undefined ? msg.payload : msg.env;
+      const fromUid = msg.from || (env && env.f) || '';
       directListeners.forEach(fn => {
-        try { fn(msg.roomId, msg.from, msg.payload); } catch (e) {}
+        try { fn(fromUid, msg.roomId, env); } catch (e) {}
       });
     }
   }
@@ -708,6 +729,7 @@ G.FIREBASE_CONFIG = {
 
   // ---------------- Utilidades directas para Co-op y Explorador de Salas ----------------
   G.OnlineHub = {
+    get wsConnected() { return wsReady; },
     ensureGuestAuth(preferredName) {
       let guestId = null;
       try { guestId = sessionStorage.getItem('ps.guest.tab.uid'); } catch (e) {}
@@ -721,10 +743,25 @@ G.FIREBASE_CONFIG = {
       setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp });
       return currentUser;
     },
+    forkTabGuestAuth() {
+      const guestId = 'guest_' + Math.random().toString(36).slice(2, 8);
+      const disp = 'Trainer_' + guestId.slice(-4).toUpperCase();
+      try { sessionStorage.setItem('ps.guest.tab.uid', guestId); } catch (e) {}
+      setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp });
+      return currentUser;
+    },
     setUid(uid) {
       wsSendRaw({ t: 'hello', uid });
     },
-    sendDirect(roomId, from, to, payload) {
+    sendDirect(roomId, a, b, c) {
+      // Soporta (roomId, to, payload) y (roomId, from, to, payload)
+      let from, to, payload;
+      if (c !== undefined) {
+        from = a; to = b; payload = c;
+      } else {
+        to = a; payload = b;
+        from = (payload && payload.f) || (G.DB && G.DB.fb && G.DB.fb.uid) || (currentUser && currentUser.uid) || '';
+      }
       const msg = { t: 'net:direct', roomId, from, to, payload };
       if (bc) { try { bc.postMessage(msg); } catch (e) {} }
       wsSendRaw(msg);
@@ -737,18 +774,19 @@ G.FIREBASE_CONFIG = {
       const rooms = rtdbTree.rooms || {};
       const out = [];
       for (const [id, r] of Object.entries(rooms)) {
-        if (!r || !r.host || !r.m) continue;
+        if (!r || !r.host || !r.m || r.open === false) continue;
         const members = Object.entries(r.m).map(([u, m]) => Object.assign({ uid: u }, m));
         if (!members.length) continue;
         const hostMem = members.find(m => m.uid === r.host) || members[0];
         out.push({
           id,
           host: r.host,
-          hostName: hostMem.name || 'Trainer',
+          hostName: hostMem.name || r.hostName || 'Trainer',
           hostDex: hostMem.dex || 25,
           hostShiny: !!hostMem.shiny,
           open: r.open !== false,
           count: members.length,
+          max: 4,
           members
         });
       }
@@ -766,6 +804,8 @@ G.FIREBASE_CONFIG = {
         out.push({
           uid: u,
           name: (prof && prof.name) || v.name || u,
+          dex: v.dex || 25,
+          shiny: !!v.shiny,
           play: !!v.play,
           room: v.room || ''
         });

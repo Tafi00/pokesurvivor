@@ -336,13 +336,22 @@ G.Social = (() => {
     if (room && room.id === id) return { ok: true };
     if (room) await leaveRoom();
     rtOn();
-    let open = null, host = null;
+    let open = null, host = null, curMembers = null;
     try {
       open = (await fb.rtdb.ref('rooms/' + id + '/open').get()).val();
       host = (await fb.rtdb.ref('rooms/' + id + '/host').get()).val();
+      curMembers = (await fb.rtdb.ref('rooms/' + id + '/m').get()).val() || {};
     } catch (e) { /* sala borrada */ }
     if (!host) { rtOff(); return { ok: false, error: 'Esa sala ya no existe.' }; }
     if (open !== true) { rtOff(); return { ok: false, error: 'La partida de esa sala ya ha empezado.' }; }
+    // Si esta pestaña tenía el mismo uid que otra pestaña que ya está dentro de la sala,
+    // bifurca la identidad de esta pestaña para entrar como segundo jugador independiente.
+    if ((host === uid || curMembers[uid]) && G.DB && G.DB.forkTabIdentity) {
+      uid = G.DB.forkTabIdentity();
+      fb = G.DB.fb;
+      me = { uid, name: G.DB.user };
+      await claimNick(G.DB.user).catch(() => {});
+    }
     try { await fb.rtdb.ref('rooms/' + id + '/m/' + uid).set(memberInfo()); }
     catch (e) { rtOff(); return { ok: false, error: 'No se pudo entrar en la sala.' }; }
     const n = (await fb.rtdb.ref('rooms/' + id + '/m').get()).numChildren();

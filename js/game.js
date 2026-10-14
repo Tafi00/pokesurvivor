@@ -541,6 +541,14 @@ G.Game = (() => {
       }
     }
   }
+  // En cooperativo, si la pestaña queda en segundo plano (p. ej. jugando en 2 pestañas
+  // del mismo PC), requestAnimationFrame se detiene: este temporizador mantiene viva
+  // la simulación del anfitrión y la red.
+  setInterval(() => {
+    if (document.hidden && G.Coop && G.Coop.active && pl && state !== 'ui' && state !== 'over') {
+      try { frame(performance.now()); } catch (e) {}
+    }
+  }, 50);
 
   function frame(ts) {
     const real = (ts - last) / 1000 || 0;

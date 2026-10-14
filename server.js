@@ -262,14 +262,27 @@ function handleUpgrade(req, socket) {
       setRtdb(p, null);
       wsBroadcast({ t: 'rtdb:set', path: p, val: null });
     }
-    // Si tenía presencia activa, marcarlo desconectado si no tiene otra pestaña con el mismo uid
+    // Si tenía presencia o sala activa, limpiarla si no tiene otra pestaña con el mismo uid
     if (client.uid) {
       const stillConnected = [...clients].some(c => c.uid === client.uid);
-      if (!stillConnected && state.docs[`pres/${client.uid}`]) {
-        state.docs[`pres/${client.uid}`] = Object.assign({}, state.docs[`pres/${client.uid}`], {
-          on: false, play: false, room: '', at: Date.now()
-        });
-        wsBroadcast({ t: 'fs:set', path: `pres/${client.uid}`, val: state.docs[`pres/${client.uid}`] });
+      if (!stillConnected) {
+        if (state.docs[`pres/${client.uid}`]) {
+          state.docs[`pres/${client.uid}`] = Object.assign({}, state.docs[`pres/${client.uid}`], {
+            on: false, play: false, room: '', at: Date.now()
+          });
+          wsBroadcast({ t: 'fs:set', path: `pres/${client.uid}`, val: state.docs[`pres/${client.uid}`] });
+        }
+        const rooms = (state.rtdb && state.rtdb.rooms) || {};
+        for (const [rId, rm] of Object.entries(rooms)) {
+          if (!rm) continue;
+          if (rm.host === client.uid) {
+            delete rooms[rId];
+            wsBroadcast({ t: 'rtdb:set', path: `rooms/${rId}`, val: null });
+          } else if (rm.m && rm.m[client.uid]) {
+            delete rm.m[client.uid];
+            wsBroadcast({ t: 'rtdb:set', path: `rooms/${rId}/m/${client.uid}`, val: null });
+          }
+        }
       }
     }
   };
@@ -321,6 +334,7 @@ function onClientMessage(client, msg) {
 
     case 'fs:set': {
       const p = normPath(msg.path);
+      if (p.startsWith('pres/')) client.uid = p.slice(5);
       if (msg.merge && state.docs[p] && typeof state.docs[p] === 'object') {
         state.docs[p] = Object.assign({}, state.docs[p], msg.val);
       } else {
@@ -368,6 +382,8 @@ function onClientMessage(client, msg) {
 
     case 'rtdb:set': {
       const p = normPath(msg.path);
+      const mMatch = p.match(/^rooms\/[^/]+\/m\/([^/]+)$/);
+      if (mMatch && msg.val) client.uid = mMatch[1];
       setRtdb(p, msg.val);
       wsBroadcast({ t: 'rtdb:set', path: p, val: msg.val });
       if (msg.reqId) wsSend(client, { t: 'res', reqId: msg.reqId, ok: true });
@@ -396,9 +412,11 @@ function onClientMessage(client, msg) {
     case 'net:direct': {
       // Relé directo ultrarrápido en memoria de usuario a usuario sin tocar disco
       const targetUid = msg.to;
+      const payload = msg.payload !== undefined ? msg.payload : msg.env;
+      const fromUid = msg.from || (payload && payload.f) || client.uid || '';
       for (const c of clients) {
         if (c.uid === targetUid) {
-          wsSend(c, { t: 'net:direct', roomId: msg.roomId, from: msg.from, payload: msg.payload });
+          wsSend(c, { t: 'net:direct', roomId: msg.roomId, from: fromUid, to: targetUid, payload });
         }
       }
       break;

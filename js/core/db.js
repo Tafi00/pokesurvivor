@@ -543,8 +543,32 @@ G.DB = (() => {
   let readyP = null;
 
   const K_GUEST = '__guest__', K_GUEST_SES = 'ps.session.guest', K_TAB_SAVE = 'ps.tab.save';
-  const isNewTab = () => /[?&]newtab=1\b/i.test(location.search || '');
+  let tabForked = /[?&]newtab=1\b/i.test(location.search || '');
+  try { if (sessionStorage.getItem('ps.tab.forked') === '1') tabForked = true; } catch (e) {}
+  const isNewTab = () => tabForked;
   const hasRoomParam = () => /[?&]room=[A-Za-z0-9_-]+/i.test(location.search || '');
+
+  function forkTabIdentity() {
+    tabForked = true;
+    try { sessionStorage.setItem('ps.tab.forked', '1'); } catch (e) {}
+    const gu = (G.OnlineHub && G.OnlineHub.forkTabGuestAuth)
+      ? G.OnlineHub.forkTabGuestAuth()
+      : { uid: 'guest_' + Math.random().toString(36).slice(2, 8), displayName: 'Trainer_' + Math.floor(1000 + Math.random() * 9000) };
+    uid = gu.uid;
+    guest = true;
+    key = K_GUEST;
+    const pool = [25, 4, 7, 1, 133, 155, 158, 252, 255, 258, 390, 393, 658];
+    const pick = pool[Math.floor(Math.random() * pool.length)] || 25;
+    save = save ? JSON.parse(JSON.stringify(save)) : newSave(gu.displayName);
+    save.name = gu.displayName;
+    save.partner = pick;
+    save.starter = pick;
+    grant(pick, 'starter');
+    user = save.name;
+    if (auth) { mode = 'cloud'; setSync('ok'); }
+    try { sessionStorage.setItem(K_TAB_SAVE, JSON.stringify(save)); } catch (e) {}
+    return uid;
+  }
 
   function ensureStarterIfRoom() {
     if (!save || save.partner || (!isNewTab() && !hasRoomParam())) return;
@@ -840,7 +864,7 @@ G.DB = (() => {
 
   return {
     ready, register, login, loginWithGoogle, playAsGuest, logout, commit, deleteAccount, flush: pushNow,
-    owns, grant, ownsShiny, grantShiny, merge, setName, upgradesOf,
+    owns, grant, ownsShiny, grantShiny, merge, setName, upgradesOf, forkTabIdentity,
     onSync(fn) { listeners.add(fn); },
     onLeave(fn) { leaveHooks.push(fn); },
     /** Acceso de bajo nivel para los módulos de red (sólo en modo nube). */
