@@ -743,6 +743,8 @@ G.I18n.add({
   'Confirmar nueva contraseña': 'Confirm new password',
   'Repite la nueva contraseña': 'Repeat new password',
   'Guardar contraseña': 'Save password',
-  'Contraseña actualizada correctamente': 'Password updated successfully'
+  'Contraseña actualizada correctamente': 'Password updated successfully',
+  '⚡ ¡El cielo retumba! Arceus desciende en 30 segundos…': '⚡ The sky rumbles! Final Boss Arceus descends in 30 seconds…'
 });
+
 

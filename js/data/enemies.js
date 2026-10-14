@@ -40,13 +40,14 @@ G.Enemies = (() => {
     { from: 450, bst: [530, 620], hp: 215, spd: 78, dmg: 24,  xp: 42,  cast: 7 }
   ];
 
-  // Franjas de jefe: salen cada 2,5 min para dar mayor ritmo a la partida.
+  // Franjas de jefe: salen cada ~2 min hasta antes de la Sentencia de Arceus (15:00).
   const BOSS_SLOTS = [
-    { at: 150, hp: 1250,  dmg: 30, xp: 260,  bst: [490, 545] },
-    { at: 300, hp: 2800,  dmg: 36, xp: 480,  bst: [520, 580] },
-    { at: 450, hp: 4800,  dmg: 42, xp: 780,  bst: [540, 600] },
-    { at: 600, hp: 7600,  dmg: 48, xp: 1150, bst: [580, 700] },
-    { at: 750, hp: 13000, dmg: 58, xp: 2000, bst: [600, 700] }
+    { at: 120, hp: 1150,  dmg: 28, xp: 260,  bst: [480, 535] },
+    { at: 240, hp: 2300,  dmg: 34, xp: 450,  bst: [510, 565] },
+    { at: 360, hp: 3800,  dmg: 40, xp: 700,  bst: [530, 590] },
+    { at: 480, hp: 5800,  dmg: 46, xp: 1000, bst: [550, 620] },
+    { at: 600, hp: 8500,  dmg: 52, xp: 1450, bst: [580, 680] },
+    { at: 750, hp: 12500, dmg: 58, xp: 2100, bst: [600, 700] }
   ];
 
   // Stats base aproximados a partir de los de juego (inverso de fetch_pokedex).

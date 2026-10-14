@@ -822,6 +822,8 @@ G.I18n.add('vi', {
   'Confirmar nueva contraseña': 'Xác nhận mật khẩu mới',
   'Repite la nueva contraseña': 'Nhập lại mật khẩu mới',
   'Guardar contraseña': 'Lưu mật khẩu',
-  'Contraseña actualizada correctamente': 'Đã cập nhật mật khẩu thành công!'
+  'Contraseña actualizada correctamente': 'Đã cập nhật mật khẩu thành công!',
+  '⚡ ¡El cielo retumba! Arceus desciende en 30 segundos…': '⚡ Bầu trời rền vang! Boss cuối Arceus sẽ giáng thế sau 30 giây…'
 });
+
 

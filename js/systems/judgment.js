@@ -29,7 +29,7 @@
  *   y en cada envío del anfitrión, ja: [x, y, animación, dirección] de Arceus.
  */
 G.Judgment = (() => {
-  const AT = 30 * 60;
+  const AT = 15 * 60;
   const ARENA_R = 24;                 // en tiles (la arena de la grieta: 11)
   const BOSS_EVERY = 5;               // sin tope: siguen saliendo mientras aguantes
   const TOUCH = 0.4;                  // vida que quita tocar a Arceus
@@ -43,7 +43,7 @@ G.Judgment = (() => {
   let phase = null;                   // null | 'cine' | 'fight'
   let ct = 0;                         // reloj de la animación
   let cfg = null;                     // { tx, ty, q: [dex de los legendarios] }
-  let ported = false, landed = false, canSkip = false, cues = {};
+  let ported = false, landed = false, canSkip = false, warned = false, cues = {};
   let A = null;                       // Arceus
   let center = null;                  // centro de la arena (mundo)
   let arenaT = 0, bossT = 0, bossN = 0, base = 0, downs = 0;
@@ -55,7 +55,7 @@ G.Judgment = (() => {
   let cineAnim = null;
 
   function reset() {
-    phase = null; ct = 0; cfg = null; ported = landed = canSkip = false; cues = {};
+    phase = null; ct = 0; cfg = null; ported = landed = canSkip = warned = false; cues = {};
     A = null; center = null; arenaT = bossT = 0; bossN = 0; base = 0; downs = 0;
     hits = new Map(); hitT = 0; samples = []; embers = []; cam = null;
   }
@@ -209,6 +209,12 @@ G.Judgment = (() => {
   function update(dt, pl, time) {
     if (!phase) {
       sampleDps(dt);                        // (para la vida del primer legendario)
+      if (!warned && time >= AT - 30 && time < AT && !G.Rift.inArena) {
+        warned = true;
+        G.Spawner.say('⚡ ¡El cielo retumba! Arceus desciende en 30 segundos…', 4, true);
+        G.Camera.kick(0.7);
+        G.Audio.sfx('quake');
+      }
       if (authority() && time >= AT && !G.Rift.inArena) start();
       return;
     }

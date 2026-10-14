@@ -722,6 +722,7 @@ G.AdminUI = (() => {
               <button type="button" class="btn small" data-act="reroll99">${G.Icons.html('cards', 14)} ${L('+99 Lượt đổi thẻ', '+99 Card Rerolls', '+99 Cambios de carta')}</button>
               <button type="button" class="btn small gold" data-act="bond">${G.Icons.html('sparkle', 14)} ${L('+1 Liên kết (Dung hợp)', '+1 Move Bond (Fuse)', '+1 Vínculo (Fusión)')}</button>
               <button type="button" class="btn small" data-act="magnet">${G.Icons.html('magnet', 14)} ${L('Hút toàn bộ chiến lợi phẩm', 'Magnet All Pickups', 'Atraer todo el botín')}</button>
+              <button type="button" class="btn small gold" data-act="arceus" style="grid-column:1/-1">${G.Icons.html('crown', 14)} ${L('🔥 Gặp Boss Cuối (Arceus) Ngay Lập Tức!', '🔥 Fight Final Boss (Arceus) Right Now!', '🔥 ¡Luchar contra el Jefe Final (Arceus) Ahora!')}</button>
             </div>
           `}
         </div>
@@ -877,6 +878,11 @@ G.AdminUI = (() => {
           G.Pickups.pullAll();
           G.Audio.sfx('confirm');
           G.UI.toast(L('🧲 Đã hút toàn bộ XP & Vật phẩm trên bản đồ!', '🧲 Pulled all XP & Pickups on map!', '🧲 ¡Todo el botín atraído!'));
+        } else if (act === 'arceus') {
+          close();
+          if (G.Judgment && G.Judgment.debugStart) G.Judgment.debugStart();
+          else G.Game.debugTime(G.Judgment ? G.Judgment.AT : 900);
+          return;
         }
         render();
       };
@@ -1051,15 +1057,15 @@ G.AdminUI = (() => {
       <div class="admin-grid-2">
         <div class="admin-card">
           <div class="admin-card-h">${G.Icons.html('clock', 18)} ${L(`Điều Khiển Đồng Hồ Trận Đấu (Hiện tại: ${mm}:${ss})`, `Run Clock Control (Current: ${mm}:${ss})`, `Reloj de la Partida (Actual: ${mm}:${ss})`)}</div>
-          <p class="admin-card-sub">${L('Nhảy tới bất kỳ mốc thời gian nào hoặc triệu hồi Phán Quyết của Arceus ở phút 30:00.', 'Jump to any timestamp or trigger the Judgment of Arceus at 30:00.', 'Salta a cualquier minuto o activa la Sentencia de Arceus (30:00).')}</p>
+          <p class="admin-card-sub">${L('Nhảy tới bất kỳ mốc thời gian nào hoặc triệu hồi Boss cuối Arceus (mốc 15:00).', 'Jump to any timestamp or trigger Final Boss Arceus (at 15:00).', 'Salta a cualquier minuto o activa la Sentencia de Arceus (15:00).')}</p>
           <div class="admin-btn-grid">
             <button type="button" class="btn small" data-time="+60">+1 ${L('phút', 'min', 'min')}</button>
             <button type="button" class="btn small" data-time="+180">+3 ${L('phút', 'min', 'min')}</button>
             <button type="button" class="btn small" data-time="+300">+5 ${L('phút', 'min', 'min')}</button>
-            <button type="button" class="btn small" data-time="300">${L('Tới 05:00', 'Go to 05:00', 'Ir a 05:00')}</button>
-            <button type="button" class="btn small" data-time="900">${L('Tới 15:00', 'Go to 15:00', 'Ir a 15:00')}</button>
-            <button type="button" class="btn small" data-time="1500">${L('Tới 25:00', 'Go to 25:00', 'Ir a 25:00')}</button>
-            <button type="button" class="btn small gold" data-time="1797" style="grid-column:1/-1">${G.Icons.html('crown', 14)} ${L('🔥 Tới 29:57 — Triệu Hồi Phán Quyết Của Arceus!', '🔥 Jump to 29:57 — Trigger Arceus Judgment!', '🔥 ¡Ir a 29:57 — Sentencia de Arceus!')}</button>
+            <button type="button" class="btn small" data-time="240">${L('Tới 04:00', 'Go to 04:00', 'Ir a 04:00')}</button>
+            <button type="button" class="btn small" data-time="480">${L('Tới 08:00', 'Go to 08:00', 'Ir a 08:00')}</button>
+            <button type="button" class="btn small" data-time="750">${L('Tới 12:30', 'Go to 12:30', 'Ir a 12:30')}</button>
+            <button type="button" class="btn small gold" data-time="arceus" style="grid-column:1/-1">${G.Icons.html('crown', 14)} ${L('🔥 Gặp Boss Cuối (Phán Quyết Của Arceus) Ngay!', '🔥 Trigger Final Boss (Arceus Judgment) Now!', '🔥 ¡Activar Jefe Final (Sentencia de Arceus) Ahora!')}</button>
           </div>
         </div>
 
@@ -1138,12 +1144,18 @@ G.AdminUI = (() => {
     box.querySelectorAll('[data-time]').forEach(b => {
       b.onclick = () => {
         const v = b.dataset.time;
+        if (v === 'arceus') {
+          close();
+          if (G.Judgment && G.Judgment.debugStart) G.Judgment.debugStart();
+          else G.Game.debugTime(G.Judgment ? G.Judgment.AT : 900);
+          return;
+        }
         const cur = G.Game.st.time || 0;
         const next = v.startsWith('+') ? cur + Number(v) : Number(v);
         G.Game.debugTime(next);
         G.Audio.sfx('confirm');
         G.UI.toast(L(`⏱️ Đã chuyển đồng hồ tới ${Math.floor(next / 60)}:${String(Math.floor(next % 60)).padStart(2, '0')}!`, `⏱️ Jumped clock to ${Math.floor(next / 60)}:${String(Math.floor(next % 60)).padStart(2, '0')}!`, `⏱️ ¡Reloj en ${Math.floor(next / 60)}:${String(Math.floor(next % 60)).padStart(2, '0')}!`));
-        if (next >= 1795) close();
+        if (next >= (G.Judgment ? G.Judgment.AT - 3 : 897)) close();
         else render();
       };
     });
