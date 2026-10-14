@@ -306,7 +306,8 @@ G.DB = (() => {
   // Tras tiradas y compras se sube a los 3 min (era 30 s: quien hacía muchas tiradas
   // guardaba 2 veces por minuto y eran millones de escrituras al día). Lo hecho sigue
   // en la copia del navegador al momento, y se sube al salir de la pestaña.
-  const PUSH_GAP = 30 * 60 * 1000, PUSH_GAP_URGENT = 3 * 60 * 1000, HIDE_GAP = 10 * 60 * 1000;
+  // Sincronización en tiempo real con el servidor en la nube propio (server.js)
+  const PUSH_GAP = 800, PUSH_GAP_URGENT = 250, HIDE_GAP = 100;
   let syncState = 'local';           // 'ok' | 'syncing' | 'pending' | 'offline' | 'local'
   const listeners = new Set();
 
@@ -345,14 +346,15 @@ G.DB = (() => {
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     auth.languageCode = 'es';
     addEventListener('online', () => { if (pending) pushNow(); });
-    // Al salir de la pestaña o cerrarla se sube lo pendiente, pero no más de una
-    // vez cada 10 min: la gente cambia de pestaña a menudo y cada partida se
-    // subía cada ~9 min en vez de cada 30 (12-10-2026, el mayor gasto de
-    // Firebase). Lo que no se sube sigue en la copia de este navegador y se
-    // sube al volver a entrar.
-    const hideFlush = () => { if (pending && Date.now() - lastPush > HIDE_GAP) pushNow(); };
+    const hideFlush = () => {
+      if (mode === 'cloud' && uid && save && navigator.sendBeacon) {
+        try { navigator.sendBeacon('/api/cloud-sync', JSON.stringify({ uid, save })); } catch (e) {}
+      }
+      if (pending) pushNow();
+    };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hideFlush(); });
     addEventListener('pagehide', hideFlush);
+    addEventListener('beforeunload', hideFlush);
     return true;
   }
 
@@ -392,47 +394,22 @@ G.DB = (() => {
     save = migrate(s, s.name);
     key = uid; user = save.name; guest = false;
     write(K_CLOUD + uid, save);
-    // Sólo se sube si hay algo que la nube no tenga (cuenta nueva, progreso de
-    // este ordenador sin subir...), y SIN esperar: antes el menú no salía hasta
-    // terminar la subida, y con Firebase lento se tardaba hasta 9 s en entrar.
-    // (Comparar el texto entero daba "distinto" casi siempre y se subía en cada
-    // entrada: ahora sólo si esta copia es más nueva que la de la nube.)
     const same = remote && !opts.legacy && (!cached || (cached.updated || 0) <= (remote.updated || 0));
-    lastPush = Date.now();       // la primera compra o ticket no sube al momento: espera como las demás
+    lastPush = Date.now();
     if (!online) { pending = true; setSync('offline'); scheduleRetry(); }
     else if (same) setSync('ok');
     else pushNow();
   }
 
-  /*
-   * Ya no se escucha el documento en vivo (cada cambio costaba una lectura).
-   * Si juegas en dos ordenadores, las partidas se fusionan al entrar y en
-   * cada subida (transacción con merge()).
-   */
   function stopListening() { if (unlisten) { unlisten(); unlisten = null; } }
 
-  /*
-   * Anti-trampas (firestore.rules): el servidor nunca rechaza tu partida para
-   * siempre. Si trae más monedas, tickets o Pokémon de los que se pueden ganar
-   * en ese rato, la rechaza; el margen crece con el tiempo, así que se
-   * reintenta igual a los 2 y a los 6 min (un caso justo, como las monedas de
-   * una partida que acaba justo después de otro guardado, pasa solo). Si sigue
-   * sin cuadrar, se sube igual pero con la marca sus = true (la cuenta queda
-   * marcada y no puede subir marcas al ranking; nadie pierde nada). La marca
-   * la pone o la quita sólo la nube: si el admin la quita, el siguiente
-   * guardado ya va sin ella.
-   *
-   * Además, nunca se sube dos veces en menos de 65 s (el servidor da menos
-   * margen a los guardados muy seguidos); mientras, todo está en el navegador.
-   */
   let markNext = false, denials = 0;
-  const K_OK = 'ps.cloudok.', MIN_GAP = 65000, DENY_WAIT = [120000, 360000];
+  const K_OK = 'ps.cloudok.', MIN_GAP = 200, DENY_WAIT = [10000, 30000];
   const sinceOk = () => Date.now() - (+read(K_OK + uid) || 0);
 
   /** Sube la partida fusionándola con lo que haya en la nube (transacción). */
   function pushNow() {
-    if (mode !== 'cloud' || guest || !save || !uid) return Promise.resolve();
-    // Si ya hay una subida en marcha, se hace otra justo después (para lo que haya cambiado mientras).
+    if (mode !== 'cloud' || !save || !uid) return Promise.resolve();
     if (pushing) { pending = true; return pushing.then(() => (pending ? pushNow() : undefined)); }
     clearTimeout(pushT); pushT = 0; pushDue = 0;
     if (navigator.onLine === false) {
@@ -441,7 +418,7 @@ G.DB = (() => {
     }
     if (sinceOk() < MIN_GAP) {
       pending = true; setSync('pending');
-      schedulePush(MIN_GAP - sinceOk() + 500);
+      schedulePush(MIN_GAP - sinceOk() + 50);
       return Promise.resolve();
     }
     pending = false;
@@ -598,35 +575,35 @@ G.DB = (() => {
         return true;
       }
       if (mode === 'local') { setSync('local'); return restoreLocal() || restoreGuest(); }
+      const u = await new Promise(res => { const off = auth.onAuthStateChanged(x => { off(); res(x); }); });
+      if (u && !String(u.uid || '').startsWith('guest_')) {
+        try {
+          await openCloud(u);
+          ensureStarterIfRoom();
+          if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
+          return true;
+        } catch (e) {
+          console.warn('[DB] no se pudo abrir la partida:', e.code || e.message);
+        }
+      }
       if (restoreLocal()) {
         if (G.OnlineHub && G.OnlineHub.ensureGuestAuth) {
           const gu = G.OnlineHub.ensureGuestAuth(user);
           uid = gu ? gu.uid : ('acc_' + key);
           mode = 'cloud';
-          setSync('ok');
+          pushNow();
         } else {
           mode = 'local';
           setSync('local');
         }
         ensureStarterIfRoom();
+        if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
         return true;
       }
-      const u = await new Promise(res => { const off = auth.onAuthStateChanged(x => { off(); res(x); }); });
-      if (!u) {
-        const rg = restoreGuest();
-        if (rg) ensureStarterIfRoom();
-        return rg;
-      }
-      try {
-        await openCloud(u);
-        ensureStarterIfRoom();
-        return true;
-      } catch (e) {
-        console.warn('[DB] no se pudo abrir la partida:', e.code || e.message);
-        const rg = restoreGuest();
-        if (rg) ensureStarterIfRoom();
-        return rg;
-      }
+      const rg = restoreGuest();
+      if (rg) ensureStarterIfRoom();
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
+      return rg;
     })();
     return readyP;
   }
@@ -642,76 +619,63 @@ G.DB = (() => {
       if (r.ok && guestBackup) { save = migrate(merge(save, guestBackup), name); write(K_SAVE + key, save); }
       return r;
     }
-    // Tope de cuentas del mes (Firebase cobra a partir de 50.000 al mes).
-    if (G.Signups && !(await G.Signups.check())) {
-      mode = 'local'; setSync('local');
-      const r = await registerLocal(name, pass);
-      if (r.ok && guestBackup) { save = migrate(merge(save, guestBackup), name); write(K_SAVE + key, save); }
-      return r;
-    }
     try {
       const legacy = await legacySave(name, pass);
       const cred = await auth.createUserWithEmailAndPassword(nameToEmail(name), pass);
-      if (G.Signups) G.Signups.markNew(cred.user.uid);   // ya la apuntó el portero
+      if (G.Signups) G.Signups.markNew(cred.user.uid);
       await openCloud(cred.user, { name, legacy });
       if (guestBackup && !save.partner) { save = migrate(merge(save, guestBackup), name); commit(true); }
       remove(K_GUEST_SES);
+      remove(K_SES);
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true, isNew: !save.partner, imported: !!legacy };
     } catch (e) {
-      const c = (e && e.code) || '';
-      if (c === 'auth/unauthorized-domain' || c === 'auth/network-request-failed' || c === 'auth/admin-restricted-operation' || c === 'auth/operation-not-allowed') {
-        mode = 'local'; setSync('local');
-        const r = await registerLocal(name, pass);
-        if (r.ok && guestBackup) { save = migrate(merge(save, guestBackup), name); write(K_SAVE + key, save); }
-        remove(K_GUEST_SES);
-        return r;
-      }
       return { ok: false, error: authError(e) };
     }
   }
 
   async function login(name, pass) {
     name = (name || '').trim();
-    const localAccs = read(K_ACC) || {};
-    if (mode === 'local' || localAccs[name.toLowerCase()]) {
-      const r = await loginLocal(name, pass);
-      if (r.ok) {
-        if (auth && G.OnlineHub && G.OnlineHub.ensureGuestAuth) {
-          const gu = G.OnlineHub.ensureGuestAuth(user);
-          uid = gu ? gu.uid : ('acc_' + key);
-          mode = 'cloud';
-          setSync('ok');
-        } else {
-          mode = 'local';
-          setSync('local');
-        }
-        remove(K_GUEST_SES);
-        return r;
-      }
-      if (mode === 'local') return r;
+    if (mode === 'local') {
+      return loginLocal(name, pass);
     }
     try {
       const legacy = await legacySave(name, pass);
       const cred = await auth.signInWithEmailAndPassword(nameToEmail(name), pass || '');
       await openCloud(cred.user, { name, legacy });
       remove(K_GUEST_SES);
+      remove(K_SES);
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true, isNew: !save.partner, imported: !!legacy };
-    } catch (e) { return { ok: false, error: authError(e) }; }
+    } catch (e) {
+      // Si la cuenta existía sólo en localStorage de antes, migrarla automáticamente a la nube
+      const localAccs = read(K_ACC) || {};
+      if (localAccs[name.toLowerCase()]) {
+        const r = await loginLocal(name, pass);
+        if (r.ok) {
+          try {
+            const legacy = await legacySave(name, pass);
+            const cred = await auth.createUserWithEmailAndPassword(nameToEmail(name), pass || '');
+            await openCloud(cred.user, { name, legacy });
+            remove(K_GUEST_SES);
+            remove(K_SES);
+            if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
+            return { ok: true, isNew: !save.partner, imported: true };
+          } catch (e2) { /* usar sesión migrada */ }
+        }
+      }
+      return { ok: false, error: authError(e) };
+    }
   }
 
   async function loginWithGoogle() {
     if (mode !== 'cloud') return { ok: false, error: 'Entrar con Google necesita la versión publicada del juego.' };
     try {
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-      // Cuenta de Google nueva con el tope del mes alcanzado: no se crea.
-      if (cred.additionalUserInfo && cred.additionalUserInfo.isNewUser && G.Signups && !(await G.Signups.check())) {
-        await cred.user.delete().catch(() => {});
-        await auth.signOut().catch(() => {});
-        return { ok: false, error: 'Este mes ya no quedan plazas para cuentas nuevas (vuelven el 1 de ' + G.Signups.nextMonthName() + '). Mientras, puedes jugar como invitado.' };
-      }
       if (cred.additionalUserInfo && cred.additionalUserInfo.isNewUser && G.Signups) G.Signups.markNew(cred.user.uid);
       await openCloud(cred.user, { name: displayNameOf(cred.user) });
       remove(K_GUEST_SES);
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true, isNew: !save.partner };
     } catch (e) { return { ok: false, error: authError(e) }; }
   }
@@ -720,7 +684,7 @@ G.DB = (() => {
   function setName(n) {
     if (!save) return;
     save.name = n; user = n;
-    commit();
+    commit(true);
   }
 
   function playAsGuest() {
@@ -748,32 +712,38 @@ G.DB = (() => {
       user = save.name || 'Invitado';
       write(K_SAVE + K_GUEST, save);
       write(K_GUEST_SES, true);
-      if (mode === 'local') remove(K_SES);
+      remove(K_SES);
     }
-    if (auth) { mode = 'cloud'; setSync('ok'); }
+    if (auth) { mode = 'cloud'; setSync('ok'); pushNow(); }
     ensureStarterIfRoom();
+    if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
     return { ok: true, isNew: !save.partner };
   }
 
   /**
-   * Guarda la partida actual (en modo invitado también guarda en este navegador).
-   * @param urgent  lo que ha costado algo (tiradas del gacha, mejoras): se sube antes
+   * Guarda la partida actual y la sincroniza en tiempo real con la nube.
    */
   function commit(urgent = false) {
     if (!save) return false;
     save.updated = Date.now();
     if (guest) {
       if (isNewTab()) {
-        try { sessionStorage.setItem(K_TAB_SAVE, JSON.stringify(save)); return true; } catch (e) { return false; }
+        try { sessionStorage.setItem(K_TAB_SAVE, JSON.stringify(save)); } catch (e) {}
+      } else {
+        write(K_SAVE + K_GUEST, save);
       }
-      return write(K_SAVE + K_GUEST, save);
+      if (mode === 'cloud' && uid) {
+        pending = true;
+        schedulePush(urgent ? PUSH_GAP_URGENT : PUSH_GAP);
+      }
+      return true;
     }
     if (!key) return false;
     if (mode === 'local') return write(K_SAVE + key, save);
     write(K_CLOUD + uid, save);
     pending = true;
     setSync('pending');
-    schedulePush(Math.max(1200, (urgent ? PUSH_GAP_URGENT : PUSH_GAP) - (Date.now() - lastPush)));
+    schedulePush(urgent ? PUSH_GAP_URGENT : PUSH_GAP);
     return true;
   }
 
@@ -783,7 +753,8 @@ G.DB = (() => {
   async function logout() {
     for (const fn of leaveHooks) { try { await fn('logout'); } catch (e) { /* nada */ } }
     if (guest && save) {
-      commit();
+      commit(true);
+      if (pending) { try { await pushNow(); } catch (e) {} }
       remove(K_GUEST_SES);
     } else if (mode === 'cloud' && !guest && save) {
       if (pending) { try { await pushNow(); } catch (e) { /* queda la copia local */ } }
@@ -796,6 +767,7 @@ G.DB = (() => {
     clearTimeout(pushT); clearTimeout(retryT);
     user = key = save = uid = null; guest = false; pending = false;
     setSync(mode === 'cloud' ? 'ok' : 'local');
+    if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
   }
 
   function nameAccount() { return !!(auth && auth.currentUser && (auth.currentUser.email || '').endsWith('@' + NAME_DOMAIN)); }
@@ -815,10 +787,6 @@ G.DB = (() => {
       return { ok: true };
     }
     try {
-      // Primero se confirma quién eres: Firebase sólo deja borrar la cuenta si
-      // se ha entrado hace poco. Antes se borraban los datos y luego fallaba
-      // ese último paso: la cuenta quedaba vacía pero existía y su nombre no
-      // se podía volver a usar.
       const cu = auth.currentUser;
       if (nameAccount()) {
         if (!pass) return { ok: false, error: 'Escribe tu contraseña.' };
@@ -833,6 +801,7 @@ G.DB = (() => {
       remove(K_CLOUD + uid);
       await auth.currentUser.delete();
       user = key = save = uid = null;
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       return { ok: true };
     } catch (e) { return { ok: false, error: authError(e) }; }
   }
@@ -862,6 +831,16 @@ G.DB = (() => {
     return true;
   }
 
+  /** ¿La sesión actual pertenece a una cuenta con rol de Administrador? */
+  function isAdminAccount() {
+    if (guest || !save || !user) return false;
+    if (auth && auth.currentUser && typeof auth.currentUser.isAdmin === 'boolean') {
+      return auth.currentUser.isAdmin;
+    }
+    const n = String(user || '').trim().toLowerCase();
+    return n === 'admin' || n === 'tafi' || n === 'root';
+  }
+
   return {
     ready, register, login, loginWithGoogle, playAsGuest, logout, commit, deleteAccount, flush: pushNow,
     owns, grant, ownsShiny, grantShiny, merge, setName, upgradesOf, forkTabIdentity,
@@ -873,6 +852,7 @@ G.DB = (() => {
     get online() { return mode === 'cloud' && !!uid && !!save; },
     /** ¿La cuenta es de usuario y contraseña (no de Google)? */
     get nameAccount() { return nameAccount(); },
+    get isAdmin() { return isAdminAccount(); },
     get mode() { return mode; },
     get localReason() { return localReason; },
     get syncState() { return syncState; },

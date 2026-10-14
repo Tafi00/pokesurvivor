@@ -42,6 +42,36 @@ let state = {
   rtdb: {}      // árbol JSON para Realtime Database (rooms, etc.)
 };
 
+const ADMIN_USERNAMES = new Set(['admin', 'tafi', 'root']);
+
+function nameToInternalEmail(name) {
+  const hex = Buffer.from(String(name || '').trim().toLowerCase(), 'utf8').toString('hex');
+  return hex + '@jugadores.pokesurvivor.net';
+}
+
+function emailToUsername(email) {
+  const m = String(email || '').match(/^([0-9a-f]+)@jugadores\.pokesurvivor\.net$/i);
+  if (m) {
+    try { return Buffer.from(m[1], 'hex').toString('utf8').toLowerCase(); } catch (e) {}
+  }
+  return String(email || '').split('@')[0].toLowerCase();
+}
+
+function checkIsAdmin(email, displayName, role) {
+  if (role === 'admin') return true;
+  const u = emailToUsername(email);
+  const d = String(displayName || '').trim().toLowerCase();
+  return ADMIN_USERNAMES.has(u) || ADMIN_USERNAMES.has(d);
+}
+
+function findUserByUid(uid) {
+  if (!uid) return null;
+  for (const u of Object.values(state.users)) {
+    if (u && u.uid === uid) return u;
+  }
+  return null;
+}
+
 function loadDb() {
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -55,9 +85,25 @@ function loadDb() {
   } catch (e) {
     console.warn('[DB] No se pudo leer online-db.json:', e.message);
   }
-  // Limpiar salas efímeras antiguas al arrancar el servidor
   state.rtdb.rooms = {};
+  seedDefaultAdmins();
   seedDefaultLeaderboard();
+}
+
+function flushSaveSync() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const snap = {
+      users: state.users,
+      docs: state.docs,
+      rtdb: {}
+    };
+    const tmp = DB_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(snap, null, 2), 'utf8');
+    fs.renameSync(tmp, DB_FILE);
+  } catch (e) {
+    console.warn('[DB] Error guardando online-db.json:', e.message);
+  }
 }
 
 let saveTimer = null;
@@ -65,22 +111,72 @@ function scheduleSave() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      const snap = {
-        users: state.users,
-        docs: state.docs,
-        rtdb: {} // las salas son en vivo, no hace falta guardarlas en disco
+    flushSaveSync();
+  }, 150);
+}
+
+process.on('SIGINT', () => { flushSaveSync(); process.exit(0); });
+process.on('SIGTERM', () => { flushSaveSync(); process.exit(0); });
+
+function seedDefaultAdmins() {
+  const now = Date.now();
+  const defaults = [
+    { name: 'admin', uid: 'u_admin', pass: 'admin123', dex: 6 },
+    { name: 'Tafi',  uid: 'u_tafi',  pass: 'admin123', dex: 25 }
+  ];
+  for (const a of defaults) {
+    const email = nameToInternalEmail(a.name);
+    if (!state.users[email]) {
+      state.users[email] = {
+        uid: a.uid,
+        email,
+        pass: a.pass,
+        displayName: a.name,
+        role: 'admin',
+        isAdmin: true,
+        createdAt: now
       };
-      fs.writeFileSync(DB_FILE, JSON.stringify(snap, null, 2), 'utf8');
-    } catch (e) {
-      console.warn('[DB] Error guardando online-db.json:', e.message);
+    } else {
+      state.users[email].role = 'admin';
+      state.users[email].isAdmin = true;
     }
-  }, 600);
+    const uid = state.users[email].uid;
+    if (!state.docs[`saves/${uid}`]) {
+      state.docs[`saves/${uid}`] = {
+        v: 3,
+        updatedAt: now,
+        save: {
+          v: 3,
+          name: a.name,
+          created: now,
+          updated: now,
+          coins: 50000,
+          owned: { [a.dex]: { at: now, from: 'starter' }, 25: { at: now, from: 'starter' }, 6: { at: now, from: 'starter' } },
+          shiny: { [a.dex]: { at: now, from: 'starter' } },
+          partner: a.dex,
+          partnerShiny: true,
+          starter: a.dex,
+          upgrades: {},
+          pupg: {},
+          tickets: { t1: 10, t10: 5 },
+          pity: {},
+          legends: {},
+          arenas: {},
+          itemsFound: {},
+          evoMoves: {},
+          ach: {},
+          missions: {},
+          profile: { favs: [{ dex: a.dex, shiny: true }], title: 'Elegido de Arceus' },
+          stats: { runs: 0, bestTime: 0, bestLevel: 0, totalKills: 0, pulls: 0, coinsEarned: 50000, shinies: 1,
+                   bossesTotal: 0, riftWins: 0, evolutions: 0, missionsDone: 0, groupRuns: 0, bestGroupTime: 0 }
+        }
+      };
+    }
+  }
 }
 
 function seedDefaultLeaderboard() {
-  if (state.docs['lbs/s_all2']) return;
+  if (state.docs['lbs/s_all2']) { scheduleSave(); return; }
   const now = Date.now();
   const sampleSolo = {
     bot_red:     { t: 1845, uids: ['bot_red'],     names: ['Red_Kanto'],   dex: [6],   shiny: [true],  lv: 54, kills: 4820 },
@@ -297,11 +393,15 @@ function onClientMessage(client, msg) {
   switch (msg.t) {
     case 'hello': {
       client.uid = msg.uid || client.uid;
+      const u = findUserByUid(client.uid);
+      const isAdmin = u ? checkIsAdmin(u.email, u.displayName, u.role) : false;
       wsSend(client, {
         t: 'init',
         reqId: msg.reqId,
         docs: state.docs,
-        rtdb: state.rtdb
+        rtdb: state.rtdb,
+        meRole: isAdmin ? 'admin' : 'user',
+        isAdmin
       });
       break;
     }
@@ -313,10 +413,14 @@ function onClientMessage(client, msg) {
         return;
       }
       const uid = msg.uid || ('u_' + crypto.randomBytes(6).toString('hex'));
-      state.users[email] = { uid, email, pass: msg.pass, displayName: msg.displayName || 'Trainer', createdAt: Date.now() };
+      const uname = emailToUsername(email);
+      const disp = msg.displayName || uname || 'Trainer';
+      const isAdmin = checkIsAdmin(email, disp, null);
+      const role = isAdmin ? 'admin' : 'user';
+      state.users[email] = { uid, email, pass: msg.pass, displayName: disp, role, isAdmin, createdAt: Date.now() };
       client.uid = uid;
       scheduleSave();
-      wsSend(client, { t: 'res', reqId: msg.reqId, ok: true, user: { uid, email, displayName: state.users[email].displayName } });
+      wsSend(client, { t: 'res', reqId: msg.reqId, ok: true, user: { uid, email, displayName: disp, role, isAdmin } });
       break;
     }
 
@@ -327,8 +431,13 @@ function onClientMessage(client, msg) {
         wsSend(client, { t: 'res', reqId: msg.reqId, ok: false, code: 'auth/invalid-credential' });
         return;
       }
+      const isAdmin = checkIsAdmin(u.email, u.displayName, u.role);
+      const role = isAdmin ? 'admin' : 'user';
+      u.role = role;
+      u.isAdmin = isAdmin;
       client.uid = u.uid;
-      wsSend(client, { t: 'res', reqId: msg.reqId, ok: true, user: { uid: u.uid, email: u.email, displayName: u.displayName } });
+      scheduleSave();
+      wsSend(client, { t: 'res', reqId: msg.reqId, ok: true, user: { uid: u.uid, email: u.email, displayName: u.displayName, role, isAdmin } });
       break;
     }
 
@@ -460,6 +569,33 @@ function fetchAndCache(relPath, localFile, res) {
 
 const server = http.createServer((req, res) => {
   const rawUrl = (req.url || '/').split('?')[0];
+
+  // Endpoint REST de sincronización instantánea en la nube (soporta fetch y navigator.sendBeacon)
+  if (rawUrl === '/api/cloud-sync' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (body && body.uid && body.save) {
+          const docPath = `saves/${body.uid}`;
+          state.docs[docPath] = {
+            save: body.save,
+            updatedAt: Date.now(),
+            v: body.save.v || 3
+          };
+          flushSaveSync();
+          wsBroadcast({ t: 'fs:set', path: docPath, val: state.docs[docPath] });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false }));
+      }
+    });
+    return;
+  }
 
   // Endpoint REST de estado del servidor online
   if (rawUrl === '/api/online-status') {

@@ -147,9 +147,19 @@ G.FIREBASE_CONFIG = {
       if (msg.rtdb && typeof msg.rtdb === 'object') {
         rtdbTree = msg.rtdb;
       }
+      if (currentUser && typeof msg.isAdmin === 'boolean') {
+        currentUser.isAdmin = msg.isAdmin;
+        currentUser.role = msg.meRole || (msg.isAdmin ? 'admin' : 'user');
+        try {
+          const snap = { uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName, role: currentUser.role, isAdmin: currentUser.isAdmin };
+          sessionStorage.setItem(SS_AUTH, JSON.stringify(snap));
+          if (!/[?&]newtab=1\b/.test(location.search)) localStorage.setItem(LS_AUTH, JSON.stringify(snap));
+        } catch (e) {}
+      }
       saveLocalCache();
       notifyAllFs();
       notifyAllRtdb('');
+      if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
       if (initResolve) { initResolve(); initResolve = null; }
       return;
     }
@@ -624,15 +634,18 @@ G.FIREBASE_CONFIG = {
         uid: u.uid,
         email: u.email || (u.uid + '@local'),
         displayName: u.displayName || 'Trainer',
+        role: u.role || (u.isAdmin ? 'admin' : 'user'),
+        isAdmin: !!u.isAdmin,
         getIdToken: () => Promise.resolve('local-token-' + u.uid),
         reauthenticateWithCredential: () => Promise.resolve(),
         reauthenticateWithPopup: () => Promise.resolve(),
         delete: async () => { setAuthUser(null); }
       };
       try {
-        sessionStorage.setItem(SS_AUTH, JSON.stringify({ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName }));
+        const snap = { uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName, role: currentUser.role, isAdmin: currentUser.isAdmin };
+        sessionStorage.setItem(SS_AUTH, JSON.stringify(snap));
         if (!/[?&]newtab=1\b/.test(location.search)) {
-          localStorage.setItem(LS_AUTH, JSON.stringify({ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName }));
+          localStorage.setItem(LS_AUTH, JSON.stringify(snap));
         }
       } catch (e) {}
       wsSendRaw({ t: 'hello', uid: currentUser.uid });
@@ -644,6 +657,7 @@ G.FIREBASE_CONFIG = {
       } catch (e) {}
     }
     authListeners.forEach(fn => { try { fn(currentUser); } catch (e) {} });
+    if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
   }
 
   const authApi = {
@@ -665,7 +679,7 @@ G.FIREBASE_CONFIG = {
         const uid = 'u_' + Math.random().toString(36).slice(2, 10);
         users[em] = { uid, email: em, pass };
         saveLocalCache();
-        setAuthUser({ uid, email: em });
+        setAuthUser({ uid, email: em, role: 'user', isAdmin: false });
       } else {
         setAuthUser(res.user);
       }
@@ -694,7 +708,7 @@ G.FIREBASE_CONFIG = {
     async signInWithPopup() {
       const rand = Math.floor(100 + Math.random() * 900);
       const uid = 'google_' + rand;
-      setAuthUser({ uid, email: uid + '@google.local', displayName: 'Trainer' + rand });
+      setAuthUser({ uid, email: uid + '@google.local', displayName: 'Trainer' + rand, role: 'user', isAdmin: false });
       return { user: currentUser, additionalUserInfo: { isNewUser: true } };
     },
     async signOut() {
@@ -740,14 +754,14 @@ G.FIREBASE_CONFIG = {
       const disp = preferredName && preferredName !== 'Invitado'
         ? preferredName
         : ('Trainer_' + guestId.slice(-4).toUpperCase());
-      setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp });
+      setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp, role: 'guest', isAdmin: false });
       return currentUser;
     },
     forkTabGuestAuth() {
       const guestId = 'guest_' + Math.random().toString(36).slice(2, 8);
       const disp = 'Trainer_' + guestId.slice(-4).toUpperCase();
       try { sessionStorage.setItem('ps.guest.tab.uid', guestId); } catch (e) {}
-      setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp });
+      setAuthUser({ uid: guestId, email: guestId + '@guest.local', displayName: disp, role: 'guest', isAdmin: false });
       return currentUser;
     },
     setUid(uid) {

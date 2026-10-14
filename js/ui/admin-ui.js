@@ -4,44 +4,44 @@
  * ADMIN en la barra superior / pantalla de pausa / botón flotante en partida.
  */
 G.Admin = (() => {
-  const KEY = 'ps.admin';
   const GOD_KEY = 'ps.admin.god';
   const OHKO_KEY = 'ps.admin.ohko';
   const NOCD_KEY = 'ps.admin.nocd';
 
-  let enabled = true;
   let godMode = false;
   let oneHitKo = false;
   let noCd = false;
 
   try {
-    const raw = localStorage.getItem(KEY);
-    // Activado por defecto para que el usuario tenga rol Admin inmediatamente
-    enabled = raw === null ? true : raw === '1';
     godMode = localStorage.getItem(GOD_KEY) === '1';
     oneHitKo = localStorage.getItem(OHKO_KEY) === '1';
     noCd = localStorage.getItem(NOCD_KEY) === '1';
   } catch (e) { /* nada */ }
 
-  function setEnabled(v) {
-    enabled = !!v;
-    try { localStorage.setItem(KEY, enabled ? '1' : '0'); } catch (e) { /* nada */ }
+  function isAdminAccount() {
+    return !!(G.DB && G.DB.isAdmin);
+  }
+
+  function setEnabled() {
     if (G.AdminUI && G.AdminUI.syncBadge) G.AdminUI.syncBadge();
   }
 
   function setGodMode(v) {
+    if (!isAdminAccount()) v = false;
     godMode = !!v;
     try { localStorage.setItem(GOD_KEY, godMode ? '1' : '0'); } catch (e) { /* nada */ }
     if (G.Game && G.Game.player) G.Game.player.godMode = godMode;
   }
 
   function setOneHitKo(v) {
+    if (!isAdminAccount()) v = false;
     oneHitKo = !!v;
     try { localStorage.setItem(OHKO_KEY, oneHitKo ? '1' : '0'); } catch (e) { /* nada */ }
     if (G.Game && G.Game.player) G.Game.player.oneHitKo = oneHitKo;
   }
 
   function setNoCd(v) {
+    if (!isAdminAccount()) v = false;
     noCd = !!v;
     try { localStorage.setItem(NOCD_KEY, noCd ? '1' : '0'); } catch (e) { /* nada */ }
     if (G.Game && G.Game.player) {
@@ -54,13 +54,13 @@ G.Admin = (() => {
   }
 
   return {
-    get enabled() { return enabled; },
+    get enabled() { return isAdminAccount(); },
     setEnabled,
-    get godMode() { return godMode; },
+    get godMode() { return isAdminAccount() && godMode; },
     setGodMode,
-    get oneHitKo() { return oneHitKo; },
+    get oneHitKo() { return isAdminAccount() && oneHitKo; },
     setOneHitKo,
-    get noCd() { return noCd; },
+    get noCd() { return isAdminAccount() && noCd; },
     setNoCd
   };
 })();
@@ -100,16 +100,13 @@ G.AdminUI = (() => {
       b.onclick = () => { tab = b.dataset.t; render(); };
     });
 
-    // Atajos globales: F2 o tecla ` (Backquote) abren/cierran el panel Admin en cualquier momento
+    // Atajos globales: F2 o tecla ` (Backquote) — SOLO funcionan para cuentas con rol Admin
     window.addEventListener('keydown', e => {
+      if (!G.Admin.enabled) return;
       if (e.key === 'F2' || (e.code === 'Backquote' && !e.ctrlKey && !e.altKey && !e.metaKey)) {
         const tag = (e.target && e.target.tagName || '').toLowerCase();
         if (e.code === 'Backquote' && (tag === 'input' || tag === 'textarea')) return;
         e.preventDefault();
-        if (!G.Admin.enabled) {
-          G.Admin.setEnabled(true);
-          G.UI.toast(L('Đã kích hoạt Quyền Admin (F2)!', 'Admin Role Activated (F2)!', '¡Rol de Admin activado (F2)!'));
-        }
         toggle();
       }
     });
@@ -130,7 +127,10 @@ G.AdminUI = (() => {
       floatBtn.classList.toggle('hidden', !(on && inRun));
     }
     const rkMod = $('rk-mod');
-    if (rkMod && on) rkMod.classList.remove('hidden');
+    if (rkMod) rkMod.classList.toggle('hidden', !on);
+    if (!on && isOpen()) {
+      $('scr-admin').classList.add('hidden');
+    }
   }
 
   const isOpen = () => {
@@ -139,12 +139,13 @@ G.AdminUI = (() => {
   };
 
   function toggle() {
+    if (!G.Admin.enabled) return;
     if (isOpen()) close();
     else open();
   }
 
   function open(t) {
-    if (!G.Admin.enabled) G.Admin.setEnabled(true);
+    if (!G.Admin.enabled) return;
     if (t) tab = t;
     else if (G.Game && G.Game.state !== 'ui' && G.Game.state !== 'over' && tab === 'res') {
       tab = 'combat';
@@ -162,6 +163,8 @@ G.AdminUI = (() => {
 
   function refreshExternalUI() {
     if (!G.DB.save) return;
+    G.DB.commit(true);
+    if (G.DB.flush) G.DB.flush();
     G.UI.refreshCoins();
     if (G.UI.isOpen('scr-menu') && G.MenuUI) G.MenuUI.open();
     else if (G.UI.isOpen('scr-gacha') && G.GachaUI) G.GachaUI.open();
