@@ -1,0 +1,349 @@
+{
+  "users": {},
+  "docs": {
+    "lbs/s_all2": {
+      "top": {
+        "bot_red": {
+          "t": 1845,
+          "uids": [
+            "bot_red"
+          ],
+          "names": [
+            "Red_Kanto"
+          ],
+          "dex": [
+            6
+          ],
+          "shiny": [
+            true
+          ],
+          "lv": 54,
+          "kills": 4820
+        },
+        "bot_cynthia": {
+          "t": 1790,
+          "uids": [
+            "bot_cynthia"
+          ],
+          "names": [
+            "Cynthia_VN"
+          ],
+          "dex": [
+            445
+          ],
+          "shiny": [
+            true
+          ],
+          "lv": 51,
+          "kills": 4510
+        },
+        "bot_steven": {
+          "t": 1620,
+          "uids": [
+            "bot_steven"
+          ],
+          "names": [
+            "StevenStone"
+          ],
+          "dex": [
+            376
+          ],
+          "shiny": [
+            false
+          ],
+          "lv": 46,
+          "kills": 3890
+        },
+        "bot_lance": {
+          "t": 1480,
+          "uids": [
+            "bot_lance"
+          ],
+          "names": [
+            "LanceDragon"
+          ],
+          "dex": [
+            149
+          ],
+          "shiny": [
+            false
+          ],
+          "lv": 42,
+          "kills": 3420
+        },
+        "bot_n": {
+          "t": 1310,
+          "uids": [
+            "bot_n"
+          ],
+          "names": [
+            "Harmonia_N"
+          ],
+          "dex": [
+            644
+          ],
+          "shiny": [
+            true
+          ],
+          "lv": 39,
+          "kills": 2950
+        }
+      },
+      "me": "bot_red",
+      "ev": ""
+    },
+    "lbs/g_all2": {
+      "top": {
+        "bot_red_bot_cynthia": {
+          "t": 1920,
+          "uids": [
+            "bot_red",
+            "bot_cynthia"
+          ],
+          "names": [
+            "Red_Kanto",
+            "Cynthia_VN"
+          ],
+          "dex": [
+            6,
+            445
+          ],
+          "shiny": [
+            true,
+            true
+          ],
+          "lv": 58,
+          "kills": 6420
+        }
+      },
+      "me": "bot_red_bot_cynthia",
+      "ev": ""
+    },
+    "lb/s_all2/e/bot_red": {
+      "t": 1845,
+      "uids": [
+        "bot_red"
+      ],
+      "names": [
+        "Red_Kanto"
+      ],
+      "dex": [
+        6
+      ],
+      "shiny": [
+        true
+      ],
+      "lv": 54,
+      "kills": 4820,
+      "at": 1791983043381
+    },
+    "profiles/bot_red": {
+      "name": "Red_Kanto",
+      "lower": "red_kanto",
+      "title": "Elegido de Arceus",
+      "favs": [
+        {
+          "dex": 6,
+          "shiny": true
+        }
+      ],
+      "best": {
+        "solo": 1845,
+        "group": 1920,
+        "level": 54,
+        "bosses": 18,
+        "legends": 9,
+        "kills": 4820,
+        "medals": 24
+      },
+      "medals": [
+        "time30",
+        "judged",
+        "lvl50",
+        "kills5000"
+      ],
+      "at": 1791983043381
+    },
+    "lb/s_all2/e/bot_cynthia": {
+      "t": 1790,
+      "uids": [
+        "bot_cynthia"
+      ],
+      "names": [
+        "Cynthia_VN"
+      ],
+      "dex": [
+        445
+      ],
+      "shiny": [
+        true
+      ],
+      "lv": 51,
+      "kills": 4510,
+      "at": 1791983043381
+    },
+    "profiles/bot_cynthia": {
+      "name": "Cynthia_VN",
+      "lower": "cynthia_vn",
+      "title": "Elegido de Arceus",
+      "favs": [
+        {
+          "dex": 445,
+          "shiny": true
+        }
+      ],
+      "best": {
+        "solo": 1790,
+        "group": 1920,
+        "level": 51,
+        "bosses": 18,
+        "legends": 9,
+        "kills": 4510,
+        "medals": 24
+      },
+      "medals": [
+        "time30",
+        "judged",
+        "lvl50",
+        "kills5000"
+      ],
+      "at": 1791983043381
+    },
+    "lb/s_all2/e/bot_steven": {
+      "t": 1620,
+      "uids": [
+        "bot_steven"
+      ],
+      "names": [
+        "StevenStone"
+      ],
+      "dex": [
+        376
+      ],
+      "shiny": [
+        false
+      ],
+      "lv": 46,
+      "kills": 3890,
+      "at": 1791983043381
+    },
+    "profiles/bot_steven": {
+      "name": "StevenStone",
+      "lower": "stevenstone",
+      "title": "Elegido de Arceus",
+      "favs": [
+        {
+          "dex": 376,
+          "shiny": false
+        }
+      ],
+      "best": {
+        "solo": 1620,
+        "group": 1920,
+        "level": 46,
+        "bosses": 18,
+        "legends": 9,
+        "kills": 3890,
+        "medals": 24
+      },
+      "medals": [
+        "time30",
+        "judged",
+        "lvl50",
+        "kills5000"
+      ],
+      "at": 1791983043381
+    },
+    "lb/s_all2/e/bot_lance": {
+      "t": 1480,
+      "uids": [
+        "bot_lance"
+      ],
+      "names": [
+        "LanceDragon"
+      ],
+      "dex": [
+        149
+      ],
+      "shiny": [
+        false
+      ],
+      "lv": 42,
+      "kills": 3420,
+      "at": 1791983043381
+    },
+    "profiles/bot_lance": {
+      "name": "LanceDragon",
+      "lower": "lancedragon",
+      "title": "Elegido de Arceus",
+      "favs": [
+        {
+          "dex": 149,
+          "shiny": false
+        }
+      ],
+      "best": {
+        "solo": 1480,
+        "group": 1920,
+        "level": 42,
+        "bosses": 18,
+        "legends": 9,
+        "kills": 3420,
+        "medals": 24
+      },
+      "medals": [
+        "time30",
+        "judged",
+        "lvl50",
+        "kills5000"
+      ],
+      "at": 1791983043381
+    },
+    "lb/s_all2/e/bot_n": {
+      "t": 1310,
+      "uids": [
+        "bot_n"
+      ],
+      "names": [
+        "Harmonia_N"
+      ],
+      "dex": [
+        644
+      ],
+      "shiny": [
+        true
+      ],
+      "lv": 39,
+      "kills": 2950,
+      "at": 1791983043381
+    },
+    "profiles/bot_n": {
+      "name": "Harmonia_N",
+      "lower": "harmonia_n",
+      "title": "Elegido de Arceus",
+      "favs": [
+        {
+          "dex": 644,
+          "shiny": true
+        }
+      ],
+      "best": {
+        "solo": 1310,
+        "group": 1920,
+        "level": 39,
+        "bosses": 18,
+        "legends": 9,
+        "kills": 2950,
+        "medals": 24
+      },
+      "medals": [
+        "time30",
+        "judged",
+        "lvl50",
+        "kills5000"
+      ],
+      "at": 1791983043381
+    }
+  },
+  "rtdb": {}
+}

@@ -893,6 +893,24 @@ G.Flow = {
     if (G.Game.state !== 'ui') G.Game.toUI();
     G.Audio.music('village');
     G.MenuUI.open();
+    const m = (location.search || '').match(/[?&]room=([A-Za-z0-9_-]+)/i);
+    if (m && m[1] && !this._roomJoinedOnce) {
+      this._roomJoinedOnce = true;
+      const code = m[1];
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('room');
+        history.replaceState(null, '', u.pathname + (u.search ? u.search : '') + u.hash);
+      } catch (e) {}
+      G.Social.start().then(() => G.Social.joinRoom(code)).then(r => {
+        if (r && r.ok) {
+          G.Audio.sfx('confirm');
+          G.LobbyUI.open();
+        } else if (r && r.error) {
+          G.UI.toast(r.error, 3200);
+        }
+      });
+    }
   },
   /** Al cerrar el resumen: a la sala si sigues en una, si no al menú. */
   afterRun() {

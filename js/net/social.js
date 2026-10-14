@@ -25,18 +25,18 @@ G.Social = (() => {
   const VALID = /^[A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]{3,16}$/;
   const MAX_PLAYERS = 4;
   const INVITE_TTL = 3 * 60 * 1000;
-  const BEAT = 15 * 60 * 1000;          // latido de presencia (era 10 min: menos escrituras)
+  const BEAT = G.OnlineHub ? 25 * 1000 : 15 * 60 * 1000;
   const ONLINE = 22 * 60 * 1000;        // "en línea" si el último latido es más reciente
-  const PRES_TTL = 60 * 1000;           // lo leído de los amigos vale 1 min
+  const PRES_TTL = G.OnlineHub ? 2000 : 60 * 1000;
 
   let fb = null, uid = null;
   let me = null;                    // { uid, name }
   let friends = new Map();          // otherUid -> { uid, name, pid, status: 'ok'|'in'|'out', online, play }
-  let unFriends = null;
+  let unFriends = null, unRoomsHub = null;
   let beatT = 0, presAt = 0, unInv = null;
   const pres = new Map();           // otherUid -> { online, play, room, seen } (lo último leído)
   const sentInv = new Set();        // a quién invitaste (para retirarlo al salir)
-  let room = null;                  // { id, host, isHost, members: [{ uid, name, dex, shiny }] }
+  let room = null;                  // { id, host, isHost, members: [{ uid, name, dex, shiny }], chat: [] }
   let roomRefs = [];
   const invites = new Map();        // fromUid -> { from, name, room, at }
   const listeners = new Set();
@@ -53,43 +53,55 @@ G.Social = (() => {
   /** Tras iniciar sesión. → 'ok' | 'need-nick' | 'off' (sin nube) */
   async function start() {
     if (!G.DB.online) return 'off';
-    if (started) return me ? 'ok' : 'need-nick';
+    if (started && me) return 'ok';
     fb = G.DB.fb; uid = fb.uid;
     started = true;
-    // El apodo no cambia nunca: se recuerda en este navegador y así no se lee
-    // el perfil en cada visita (una lectura menos por jugador y sesión).
     const NICK = 'ps.nick.' + uid;
     let cachedNick = null;
     try { cachedNick = localStorage.getItem(NICK); } catch (e) { /* nada */ }
     const prof = cachedNick ? { name: cachedNick }
       : await fb.fs.collection('profiles').doc(uid).get().then(s => s.exists ? s.data() : null).catch(() => null);
-    if (prof) {
+    if (prof && prof.name) {
       me = { uid, name: prof.name };
       if (G.DB.user !== prof.name) G.DB.setName(prof.name);
       try { localStorage.setItem(NICK, prof.name); } catch (e) { /* nada */ }
-    }
-    else if (G.DB.nameAccount) {
-      // Cuentas de nombre y contraseña: su nombre ya es único, se usa de apodo.
-      const r = await claimNick(G.DB.save.name);
+      // Asegura que el documento en names y profiles exista en el servidor
+      fb.fs.collection('names').doc(prof.name.toLowerCase()).set({ uid }).catch(() => {});
+      fb.fs.collection('profiles').doc(uid).set({ name: prof.name, lower: prof.name.toLowerCase(), at: fts() }, { merge: true }).catch(() => {});
+    } else {
+      let candidate = (G.DB.save && G.DB.save.name ? String(G.DB.save.name).trim() : '').replace(/[^A-Za-z0-9_]/g, '');
+      if (!VALID.test(candidate) || candidate.toLowerCase() === 'invitado') {
+        candidate = 'Trainer_' + String(Math.floor(1000 + Math.random() * 9000));
+      }
+      let r = await claimNick(candidate);
+      if (!r.ok) {
+        candidate = candidate.slice(0, 11) + '_' + Math.floor(100 + Math.random() * 900);
+        r = await claimNick(candidate);
+      }
       if (!r.ok) return 'need-nick';
-    } else return 'need-nick';
+    }
     online();
     return 'ok';
   }
 
-  /** Reserva un apodo único y crea el perfil público. */
+  /** Reserva un apodo único y crea el perfil público (también permite cambiar de apodo). */
   async function claimNick(name) {
+    if (!fb && G.DB.online) { fb = G.DB.fb; uid = fb.uid; }
     name = (name || '').trim();
     if (!VALID.test(name)) return { ok: false, error: 'El apodo debe tener 3-16 letras, números o _.' };
     const lower = name.toLowerCase();
+    const oldLower = me && me.name ? me.name.toLowerCase() : null;
     try {
       await fb.fs.runTransaction(async tx => {
         const nref = fb.fs.collection('names').doc(lower);
         const n = await tx.get(nref);
         if (n.exists && n.data().uid !== uid) throw { code: 'taken' };
-        if (!n.exists) tx.set(nref, { uid });
+        if (oldLower && oldLower !== lower) {
+          tx.delete(fb.fs.collection('names').doc(oldLower));
+        }
+        tx.set(nref, { uid });
         tx.set(fb.fs.collection('profiles').doc(uid),
-          { name, lower, at: firebase.firestore.FieldValue.serverTimestamp() });
+          { name, lower, at: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       });
     } catch (e) {
       if (e && e.code === 'taken') return { ok: false, error: 'Ese apodo ya lo tiene otro jugador.' };
@@ -99,23 +111,30 @@ G.Social = (() => {
     try { localStorage.setItem('ps.nick.' + uid, name); } catch (e) { /* nada */ }
     G.DB.setName(name);
     if (started && !beatT) online();
+    writeStatus();
+    if (room) refreshMember();
     publishProfile(true);
+    emit('nick');
     return { ok: true };
   }
 
-  /** Presencia (latido), amigos e invitaciones. Nada de esto usa la Realtime Database. */
+  /** Presencia (latido), amigos e invitaciones. */
   function online() {
     if (beatT) return;                        // ya estaba en marcha
-    if (fb.rtdb) fb.rtdb.goOffline();         // se conecta sólo al entrar en una sala
+    if (fb.rtdb && !G.OnlineHub) fb.rtdb.goOffline();
     writeStatus();
     clearInterval(beatT);
     beatT = setInterval(() => { if (document.visibilityState === 'visible') writeStatus(); }, BEAT);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pagehide', onHide);
     listenFriends();
+    listenInvites();
+    if (G.OnlineHub && G.OnlineHub.onRtdbRooms && !unRoomsHub) {
+      unRoomsHub = G.OnlineHub.onRtdbRooms(() => emit('rooms'));
+    }
   }
 
-  /** Invitaciones a salas: sólo te pueden llegar de amigos, así que sin amigos no se escucha (lecturas). */
+  /** Invitaciones a salas: escucha siempre para recibir invitaciones de amigos o de la sala pública. */
   function listenInvites() {
     if (unInv || !fb) return;
     unInv = fb.fs.collection('inv').where('to', '==', uid).onSnapshot(snap => {
@@ -128,16 +147,23 @@ G.Social = (() => {
   }
 
   let playing = false, lastBeat = 0;
-  /** ¿Hay alguien que pueda leer tu "en línea"? (sólo los amigos confirmados) */
   const hasFriends = () => [...friends.values()].some(f => f.status === 'ok');
   function writeStatus(on = true) {
-    // Sin amigos nadie lo lee: no se gasta una escritura (cupo diario de Firebase).
-    if (!fb || !me || !hasFriends()) return;
+    if (!fb || !me) return;
+    if (!G.OnlineHub && !hasFriends()) return;
     lastBeat = Date.now();
-    fb.fs.collection('pres').doc(uid).set({ on, at: fts(), room: room ? room.id : '', play: playing }).catch(() => {});
+    const s = G.DB.save || {};
+    fb.fs.collection('pres').doc(uid).set({
+      on,
+      at: fts(),
+      name: me.name,
+      dex: s.partner || 25,
+      shiny: !!(s.partnerShiny && G.DB.ownsShiny(s.partner)),
+      room: room ? room.id : '',
+      play: playing
+    }).catch(() => {});
   }
   function setPlaying(p) { if (playing !== !!p) { playing = !!p; writeStatus(); } }
-  // Al volver a la pestaña tras un rato, un latido; al cerrarla, "desconectado".
   function onVisible() { if (document.visibilityState === 'visible' && Date.now() - lastBeat > BEAT) writeStatus(); }
   function onHide() { writeStatus(false); }
 
@@ -146,10 +172,11 @@ G.Social = (() => {
     await leaveRoom().catch(() => {});
     if (unFriends) { unFriends(); unFriends = null; }
     if (unInv) { unInv(); unInv = null; }
+    if (unRoomsHub) { unRoomsHub(); unRoomsHub = null; }
     clearInterval(beatT); beatT = 0;
     document.removeEventListener('visibilitychange', onVisible);
     window.removeEventListener('pagehide', onHide);
-    if (me) await fb.fs.collection('pres').doc(uid).delete().catch(() => {});
+    if (me && fb) await fb.fs.collection('pres').doc(uid).delete().catch(() => {});
     if (why === 'delete') {
       try { localStorage.removeItem('ps.nick.' + uid); } catch (e) { /* nada */ }
       await deleteAll().catch(e => console.warn('[Social] borrar:', e));
@@ -161,7 +188,6 @@ G.Social = (() => {
 
   /** Al borrar la cuenta: amistades, marcas del ranking, perfil y apodo. */
   async function deleteAll() {
-    // Cada paso por separado: si uno falla, los demás se borran igual.
     const step = async (what, fn) => { try { await fn(); } catch (e) { console.warn('[Social] no se pudo borrar ' + what + ':', e.code || e.message); } };
     const del = async q => { const s = await q.get(); await Promise.all(s.docs.map(d => d.ref.delete().catch(() => {}))); };
     await step('amistades', () => del(fb.fs.collection('friendships').where('users', 'array-contains', uid)));
@@ -191,27 +217,23 @@ G.Social = (() => {
           online: false, play: false, room: '', seen: 0
         }, pres.get(other) || {}));
       });
-      // Un amigo nuevo (o recién aceptado): se mira si está en línea.
       const added = [...next.values()].some(f => f.status === 'ok' && (!friends.has(f.uid) || friends.get(f.uid).status !== 'ok'));
       const hadFriends = hasFriends();
       friends = next;
       emit('friends');
-      // Tu primer amigo: ahora sí hay quien lea tu "en línea" y quien te invite.
       if (!hadFriends && hasFriends()) writeStatus();
       if (hasFriends()) listenInvites();
-      // Se mira si está en línea un momento después: tu amigo también acaba de
-      // recibir la amistad y está apuntando su "en línea" a la vez.
-      if (added) setTimeout(() => { if (started) refreshPresence(true); }, 2500);
+      if (added) setTimeout(() => { if (started) refreshPresence(true); }, 800);
     }, e => console.warn('[Social] amigos:', e.code || e.message));
   }
 
   /**
-   * Lee el "en línea" de tus amigos (1 lectura por amigo). Sólo se llama al
-   * abrir Amigos o la sala, y lo leído vale 1 min.
+   * Lee el "en línea" de tus amigos.
    */
   async function refreshPresence(force = false) {
     if (!fb || (!force && Date.now() - presAt < PRES_TTL)) return;
     presAt = Date.now();
+    writeStatus();
     const ok = [...friends.values()].filter(f => f.status === 'ok');
     const docs = await Promise.all(ok.map(f => fb.fs.collection('pres').doc(f.uid).get().catch(() => null)));
     const t = Date.now();
@@ -220,7 +242,6 @@ G.Social = (() => {
       const on = !!(v && v.on && t - msOf(v.at) < ONLINE);
       const p = { online: on, play: !!(on && v.play), room: on ? v.room : '', seen: v ? msOf(v.at) : 0 };
       pres.set(f.uid, p);
-      // La lista de amigos puede haberse renovado mientras se leía: se aplica a la actual.
       const cur = friends.get(f.uid);
       if (cur) Object.assign(cur, p);
     });
@@ -230,6 +251,7 @@ G.Social = (() => {
   /** Envía una solicitud de amistad (o acepta la que ya te había mandado). */
   async function request(name) {
     name = (name || '').trim();
+    if (!me) await start();
     if (!me) return { ok: false, error: 'Primero elige tu apodo.' };
     if (!VALID.test(name)) return { ok: false, error: 'Escribe el apodo exacto de tu amigo.' };
     const n = await fb.fs.collection('names').doc(name.toLowerCase()).get().catch(() => null);
@@ -260,6 +282,7 @@ G.Social = (() => {
       await fb.fs.collection('friendships').doc(f.pid).update({
         status: 'ok', at: firebase.firestore.FieldValue.serverTimestamp(), ['names.' + uid]: me.name
       });
+      refreshPresence(true);
       return { ok: true, msg: 'Ahora eres amigo de ' + f.name };
     } catch (e) { return { ok: false, error: 'No se pudo aceptar (' + (e.code || 'error') + ').' }; }
   }
@@ -275,28 +298,41 @@ G.Social = (() => {
 
   function memberInfo() {
     const s = G.DB.save;
-    return { name: me.name, dex: s.partner, shiny: !!s.partnerShiny && G.DB.ownsShiny(s.partner), at: ts() };
+    const partnerDex = (s && s.partner) || 25;
+    return {
+      name: (me && me.name) || G.DB.user || 'Trainer',
+      dex: partnerDex,
+      shiny: !!(s && s.partnerShiny && G.DB.ownsShiny(partnerDex)),
+      at: ts()
+    };
   }
 
-  /**
-   * La Realtime Database sólo se conecta mientras estás en una sala: cada
-   * conexión abierta gasta descargas (se pagan a partir de 360 MB al día).
-   * (El 11-10-2026 hubo un contador de gente en línea que la tenía siempre
-   * conectada; se quitó por eso.)
-   */
-  function rtOn() { if (fb.rtdb) fb.rtdb.goOnline(); }
-  function rtOff() { if (fb && fb.rtdb && !room) fb.rtdb.goOffline(); }
+  function rtOn() { if (fb && fb.rtdb) fb.rtdb.goOnline(); }
+  function rtOff() { if (fb && fb.rtdb && !room && !G.OnlineHub) fb.rtdb.goOffline(); }
 
   async function createRoom() {
+    if (!me) await start();
     if (room) return room;
     rtOn();
     const id = fb.rtdb.ref('rooms').push().key;
-    await fb.rtdb.ref('rooms/' + id).set({ host: uid, open: true, at: ts(), m: { [uid]: memberInfo() } });
+    await fb.rtdb.ref('rooms/' + id).set({
+      host: uid,
+      hostName: (me && me.name) || G.DB.user || 'Trainer',
+      open: true,
+      at: ts(),
+      m: { [uid]: memberInfo() },
+      chat: {}
+    });
     enterRoom(id, uid);
     return room;
   }
 
-  async function joinRoom(id) {
+  async function joinRoom(rawId) {
+    if (!me) await start();
+    let id = String(rawId || '').trim();
+    if (!id) return { ok: false, error: 'Escribe el código de la sala.' };
+    // Normaliza códigos cortos de 4-8 caracteres a mayúsculas
+    if (id.length <= 8) id = id.toUpperCase();
     if (room && room.id === id) return { ok: true };
     if (room) await leaveRoom();
     rtOn();
@@ -320,7 +356,7 @@ G.Social = (() => {
   }
 
   function enterRoom(id, host) {
-    room = { id, host, isHost: host === uid, members: [], open: true };
+    room = { id, host, isHost: host === uid, members: [], open: true, chat: [] };
     watchRoomDisconnect();
     const mref = fb.rtdb.ref('rooms/' + id + '/m');
     mref.on('value', s => {
@@ -335,9 +371,34 @@ G.Social = (() => {
     href.on('value', s => { if (room && room.id === id && !s.val()) closedRoom(); }, () => closedRoom());
     const oref = fb.rtdb.ref('rooms/' + id + '/open');
     oref.on('value', s => { if (room && room.id === id) { room.open = s.val() === true; emit('room'); } }, () => {});
-    roomRefs = [mref, href, oref];
+    const cref = fb.rtdb.ref('rooms/' + id + '/chat');
+    cref.on('value', s => {
+      if (!room || room.id !== id) return;
+      const c = s.val() || {};
+      room.chat = Object.keys(c).map(k => Object.assign({ id: k }, c[k]))
+        .sort((a, b) => (a.at || 0) - (b.at || 0))
+        .slice(-30);
+      emit('chat');
+    }, () => {});
+    roomRefs = [mref, href, oref, cref];
     writeStatus();
     emit('room');
+  }
+
+  async function sendChat(text) {
+    if (!room || !fb || !fb.rtdb) return false;
+    const clean = String(text || '').trim().slice(0, 140);
+    if (!clean) return false;
+    const msg = {
+      uid,
+      name: (me && me.name) || G.DB.user || 'Trainer',
+      text: clean,
+      at: Date.now()
+    };
+    try {
+      await fb.rtdb.ref('rooms/' + room.id + '/chat').push(msg);
+      return true;
+    } catch (e) { return false; }
   }
 
   /** Si se cierra el navegador, la sala (anfitrión) o tu plaza (invitado) se borran solas. */
@@ -383,15 +444,24 @@ G.Social = (() => {
 
   /** Actualiza tu Pokémon en la sala (si cambias de compañero). */
   function refreshMember() {
-    if (room && me) fb.rtdb.ref('rooms/' + room.id + '/m/' + uid).update(
-      { dex: G.DB.save.partner, shiny: !!G.DB.save.partnerShiny && G.DB.ownsShiny(G.DB.save.partner) }).catch(() => {});
+    if (room && me) {
+      const s = G.DB.save;
+      fb.rtdb.ref('rooms/' + room.id + '/m/' + uid).update({
+        name: me.name,
+        dex: s.partner,
+        shiny: !!s.partnerShiny && G.DB.ownsShiny(s.partner)
+      }).catch(() => {});
+    }
+    writeStatus();
   }
 
   // ---------------- invitaciones ----------------
 
-  async function invite(other) {
+  async function invite(other, otherNameOpt) {
+    if (!me) await start();
     const f = friends.get(other);
-    if (!f || f.status !== 'ok') return { ok: false, error: 'Sólo puedes invitar a tus amigos.' };
+    const targetName = (f && f.name) || otherNameOpt || 'Jugador';
+    if (!f && !otherNameOpt) return { ok: false, error: 'Sólo puedes invitar a tus amigos.' };
     if (room && room.members.length >= MAX_PLAYERS) return { ok: false, error: 'La sala está llena.' };
     if (room && !room.isHost) return { ok: false, error: 'Sólo el anfitrión de la sala puede invitar.' };
     if (!room) await createRoom();
@@ -399,7 +469,7 @@ G.Social = (() => {
       await fb.fs.collection('inv').doc(other + '_' + uid).set({ to: other, from: uid, room: room.id, name: me.name, at: fts() });
     } catch (e) { return { ok: false, error: 'No se pudo invitar (' + (e.code || 'error') + ').' }; }
     sentInv.add(other);
-    return { ok: true, msg: 'Invitación enviada a ' + f.name };
+    return { ok: true, msg: 'Invitación enviada a ' + targetName };
   }
 
   /** Retira las invitaciones que mandaste (al salir de la sala). */
@@ -410,10 +480,7 @@ G.Social = (() => {
   }
 
   function onInvite(ref, v) {
-    // Las caducadas se borran; sólo se aceptan de amigos confirmados.
     if (!v || (v.at && Date.now() - msOf(v.at) > INVITE_TTL)) { ref.delete().catch(() => {}); return; }
-    const f = friends.get(v.from);
-    if (f && f.status !== 'ok') return;
     invites.set(v.from, { from: v.from, name: v.name, room: v.room, at: msOf(v.at) || Date.now() });
     emit('invites');
   }
@@ -435,6 +502,18 @@ G.Social = (() => {
     emit('invites');
   }
 
+  // ---------------- salas abiertas y jugadores en línea ----------------
+
+  function openRooms() {
+    if (G.OnlineHub && G.OnlineHub.listOpenRooms) return G.OnlineHub.listOpenRooms();
+    return [];
+  }
+
+  function onlinePlayers() {
+    if (G.OnlineHub && G.OnlineHub.listOnlinePlayers) return G.OnlineHub.listOnlinePlayers();
+    return [];
+  }
+
   // ---------------- perfil público ----------------
 
   /** Lo que se enseña de ti (también para tu vista previa, sin subirlo). */
@@ -453,41 +532,32 @@ G.Social = (() => {
   }
 
   let pubT = 0, pubAt = 0, pubLast = '';
-  /**
-   * Sube tu perfil (con un poco de espera, por si cambias varias cosas
-   * seguidas). Tras cada partida, como mucho una vez cada 10 min; si cambias
-   * favoritos o título (force), al momento. Si no ha cambiado nada, no se sube.
-   */
   function publishProfile(force = false) {
     if (!me || !fb) return;
-    if (!force && Date.now() - pubAt < 30 * 60 * 1000) return;     // como mucho cada 30 min (era 10)
+    if (!force && Date.now() - pubAt < 30 * 60 * 1000) return;
     clearTimeout(pubT);
     pubT = setTimeout(() => {
       if (!me || !fb) return;
       const d = profileData();
-      // Para decidir si se sube: los derrotados cuentan por miles (cambian en
-      // cada partida y reescribir el perfil cada vez gastaba miles de
-      // escrituras por hora). Se recuerda entre sesiones.
       const key = JSON.stringify(Object.assign({}, d, { best: Object.assign({}, d.best, { kills: Math.floor(d.best.kills / 1000) }) }));
       const lsKey = 'ps.pub.' + uid;
       if (!pubLast) { try { pubLast = localStorage.getItem(lsKey) || ''; } catch (e) { /* nada */ } }
-      if (key === pubLast) return;
+      if (key === pubLast && !force) return;
       pubLast = key; pubAt = Date.now();
       try { localStorage.setItem(lsKey, key); } catch (e) { /* nada */ }
       fb.fs.collection('profiles').doc(uid).set(Object.assign(d, {
         name: me.name, lower: me.name.toLowerCase(), at: firebase.firestore.FieldValue.serverTimestamp()
       })).catch(e => { pubLast = ''; console.warn('[Social] perfil:', e.code || e.message); });
-    }, 800);
+    }, 300);
   }
 
   /** El perfil público de otro jugador. */
   const profCache = new Map();
   async function getProfile(other) {
     if (!fb) return null;
-    // El tuyo sale de tu partida (sin leer nada y siempre al día).
     if (other === uid && me) return Object.assign(profileData(), { name: me.name });
     const c = profCache.get(other);
-    if (c && Date.now() - c.at < 10 * 60 * 1000) return c.v;     // lo leído vale 10 min
+    if (c && Date.now() - c.at < 60 * 1000) return c.v;
     const d = await fb.fs.collection('profiles').doc(other).get().catch(() => null);
     const v = d && d.exists ? d.data() : null;
     profCache.set(other, { at: Date.now(), v });
@@ -500,7 +570,7 @@ G.Social = (() => {
   return {
     start, stop, claimNick, request, accept, remove, publishProfile, getProfile, profileData,
     createRoom, joinRoom, leaveRoom, setOpen, refreshMember, setPlaying, refreshPresence,
-    invite, acceptInvite, declineInvite,
+    invite, acceptInvite, declineInvite, sendChat, openRooms, onlinePlayers,
     on(fn) { listeners.add(fn); }, off(fn) { listeners.delete(fn); },
     get me() { return me; },
     get started() { return started; },

@@ -325,17 +325,19 @@ G.DB = (() => {
     const cfg = G.FIREBASE_CONFIG;
     if (!/^https?:$/.test(location.protocol)) { localReason = 'file'; return false; }
     if (!cfg || !cfg.apiKey || !cfg.projectId) { localReason = 'config'; return false; }
-    await loadScript(SDK + 'firebase-app-compat.js');
-    await loadScript(SDK + 'firebase-auth-compat.js');
-    await loadScript(SDK + 'firebase-firestore-compat.js');
-    // Base de datos en tiempo real: amigos en línea, invitaciones y salas.
-    if (cfg.databaseURL) await loadScript(SDK + 'firebase-database-compat.js');
+    if (!(window.firebase && window.firebase.__psLocalHub)) {
+      await loadScript(SDK + 'firebase-app-compat.js');
+      await loadScript(SDK + 'firebase-auth-compat.js');
+      await loadScript(SDK + 'firebase-firestore-compat.js');
+      // Base de datos en tiempo real: amigos en línea, invitaciones y salas.
+      if (cfg.databaseURL) await loadScript(SDK + 'firebase-database-compat.js');
+    }
     firebase.initializeApp(cfg);
     auth = firebase.auth();
     fs = firebase.firestore();
     rtdb = cfg.databaseURL ? firebase.database() : null;
     // Sólo para pruebas: { ..., emulator: true } usa el emulador local de Firebase.
-    if (cfg.emulator) {
+    if (cfg.emulator && !(window.firebase && window.firebase.__psLocalHub)) {
       auth.useEmulator('http://127.0.0.1:9099');
       fs.useEmulator('127.0.0.1', 8080);
       if (rtdb) rtdb.useEmulator('127.0.0.1', 9000);
@@ -540,10 +542,22 @@ G.DB = (() => {
 
   let readyP = null;
 
-  const K_GUEST = '__guest__', K_GUEST_SES = 'ps.session.guest';
+  const K_GUEST = '__guest__', K_GUEST_SES = 'ps.session.guest', K_TAB_SAVE = 'ps.tab.save';
+  const isNewTab = () => /[?&]newtab=1\b/i.test(location.search || '');
+  const hasRoomParam = () => /[?&]room=[A-Za-z0-9_-]+/i.test(location.search || '');
+
+  function ensureStarterIfRoom() {
+    if (!save || save.partner || (!isNewTab() && !hasRoomParam())) return;
+    const pool = [25, 4, 7, 1, 133, 155, 158, 252, 255, 258, 390, 393, 658];
+    const pick = pool[Math.floor(Math.random() * pool.length)] || 25;
+    save.starter = pick;
+    save.partner = pick;
+    grant(pick, 'starter');
+    commit();
+  }
 
   function restoreGuest() {
-    if (!read(K_GUEST_SES)) return false;
+    if (!isNewTab() && !read(K_GUEST_SES) && !hasRoomParam()) return false;
     playAsGuest();
     return true;
   }
@@ -554,12 +568,41 @@ G.DB = (() => {
     readyP = (async () => {
       try { if (await initCloud()) mode = 'cloud'; }
       catch (e) { console.warn('[DB] sin nube:', e.message); localReason = 'error'; mode = 'local'; }
+      if (isNewTab()) {
+        playAsGuest();
+        ensureStarterIfRoom();
+        return true;
+      }
       if (mode === 'local') { setSync('local'); return restoreLocal() || restoreGuest(); }
-      if (restoreLocal()) { mode = 'local'; setSync('local'); return true; }
+      if (restoreLocal()) {
+        if (G.OnlineHub && G.OnlineHub.ensureGuestAuth) {
+          const gu = G.OnlineHub.ensureGuestAuth(user);
+          uid = gu ? gu.uid : ('acc_' + key);
+          mode = 'cloud';
+          setSync('ok');
+        } else {
+          mode = 'local';
+          setSync('local');
+        }
+        ensureStarterIfRoom();
+        return true;
+      }
       const u = await new Promise(res => { const off = auth.onAuthStateChanged(x => { off(); res(x); }); });
-      if (!u) return restoreGuest();
-      try { await openCloud(u); return true; }
-      catch (e) { console.warn('[DB] no se pudo abrir la partida:', e.code || e.message); return restoreGuest(); }
+      if (!u) {
+        const rg = restoreGuest();
+        if (rg) ensureStarterIfRoom();
+        return rg;
+      }
+      try {
+        await openCloud(u);
+        ensureStarterIfRoom();
+        return true;
+      } catch (e) {
+        console.warn('[DB] no se pudo abrir la partida:', e.code || e.message);
+        const rg = restoreGuest();
+        if (rg) ensureStarterIfRoom();
+        return rg;
+      }
     })();
     return readyP;
   }
@@ -608,7 +651,19 @@ G.DB = (() => {
     const localAccs = read(K_ACC) || {};
     if (mode === 'local' || localAccs[name.toLowerCase()]) {
       const r = await loginLocal(name, pass);
-      if (r.ok) { mode = 'local'; setSync('local'); remove(K_GUEST_SES); return r; }
+      if (r.ok) {
+        if (auth && G.OnlineHub && G.OnlineHub.ensureGuestAuth) {
+          const gu = G.OnlineHub.ensureGuestAuth(user);
+          uid = gu ? gu.uid : ('acc_' + key);
+          mode = 'cloud';
+          setSync('ok');
+        } else {
+          mode = 'local';
+          setSync('local');
+        }
+        remove(K_GUEST_SES);
+        return r;
+      }
       if (mode === 'local') return r;
     }
     try {
@@ -645,11 +700,34 @@ G.DB = (() => {
   }
 
   function playAsGuest() {
-    user = 'Invitado'; key = K_GUEST; guest = true; uid = null;
-    save = loadLocal(K_GUEST, 'Invitado');
-    write(K_SAVE + K_GUEST, save);
-    write(K_GUEST_SES, true);
-    if (mode === 'local') remove(K_SES);
+    guest = true; key = K_GUEST;
+    if (isNewTab()) {
+      let tabSave = null;
+      try { const raw = sessionStorage.getItem(K_TAB_SAVE); if (raw) tabSave = JSON.parse(raw); } catch (e) {}
+      const gu = (G.OnlineHub && G.OnlineHub.ensureGuestAuth) ? G.OnlineHub.ensureGuestAuth(tabSave && tabSave.name) : null;
+      const defaultName = (gu && gu.displayName) || ('Trainer_' + Math.floor(100 + Math.random() * 900));
+      save = tabSave ? migrate(tabSave, tabSave.name || defaultName) : newSave(defaultName);
+      user = save.name;
+      uid = gu ? gu.uid : ('guest_' + Math.random().toString(36).slice(2, 10));
+      try { sessionStorage.setItem(K_TAB_SAVE, JSON.stringify(save)); } catch (e) {}
+    } else {
+      save = loadLocal(K_GUEST, 'Invitado');
+      const gu = (G.OnlineHub && G.OnlineHub.ensureGuestAuth)
+        ? G.OnlineHub.ensureGuestAuth(save.name && save.name !== 'Invitado' ? save.name : null)
+        : null;
+      if (gu) {
+        uid = gu.uid;
+        if (!save.name || save.name === 'Invitado') save.name = gu.displayName || 'Invitado';
+      } else {
+        uid = null;
+      }
+      user = save.name || 'Invitado';
+      write(K_SAVE + K_GUEST, save);
+      write(K_GUEST_SES, true);
+      if (mode === 'local') remove(K_SES);
+    }
+    if (auth) { mode = 'cloud'; setSync('ok'); }
+    ensureStarterIfRoom();
     return { ok: true, isNew: !save.partner };
   }
 
@@ -660,7 +738,12 @@ G.DB = (() => {
   function commit(urgent = false) {
     if (!save) return false;
     save.updated = Date.now();
-    if (guest) return write(K_SAVE + K_GUEST, save);
+    if (guest) {
+      if (isNewTab()) {
+        try { sessionStorage.setItem(K_TAB_SAVE, JSON.stringify(save)); return true; } catch (e) { return false; }
+      }
+      return write(K_SAVE + K_GUEST, save);
+    }
     if (!key) return false;
     if (mode === 'local') return write(K_SAVE + key, save);
     write(K_CLOUD + uid, save);
@@ -763,7 +846,7 @@ G.DB = (() => {
     /** Acceso de bajo nivel para los módulos de red (sólo en modo nube). */
     get fb() { return mode === 'cloud' ? { auth, fs, rtdb, uid, emulator: !!(G.FIREBASE_CONFIG || {}).emulator } : null; },
     /** ¿Está disponible lo online (amigos, ranking, multijugador)? */
-    get online() { return mode === 'cloud' && !guest && !!uid && !!save; },
+    get online() { return mode === 'cloud' && !!uid && !!save; },
     /** ¿La cuenta es de usuario y contraseña (no de Google)? */
     get nameAccount() { return nameAccount(); },
     get mode() { return mode; },

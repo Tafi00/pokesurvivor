@@ -731,5 +731,67 @@ G.I18n.add('vi', {
   'En iPhone, Safari no deja poner las webs a pantalla completa. Pulsa Compartir y luego "Añadir a pantalla de inicio": abriendo el juego desde ese icono se juega a pantalla completa.':
     'Trên iPhone, Safari không hỗ trợ toàn màn hình trực tiếp. Hãy nhấn Chia sẻ rồi chọn "Thêm vào Màn hình chính": mở game từ biểu tượng đó để chơi toàn màn hình.',
   'No se puede conectar con algún amigo: su red (o la tuya) no deja jugar en grupo. Probad con otra wifi o datos móviles; se reintenta solo.':
-    'Không thể kết nối trực tiếp với đồng đội do tường lửa mạng. Hãy thử đổi Wi-Fi hoặc dùng 4G/5G; hệ thống đang tự động thử lại.'
+    'Không thể kết nối trực tiếp với đồng đội do tường lửa mạng. Hãy thử đổi Wi-Fi hoặc dùng 4G/5G; hệ thống đang tự động thử lại.',
+
+  // Chơi chung Online (Co-op, Phòng, Sảnh chờ & Trò chuyện)
+  'Amigos y Cooperativo': 'Bạn bè & Chơi chung (Co-op)',
+  'Cambiar apodo': 'Đổi biệt danh',
+  'Crear sala Co-op': 'Tạo phòng Co-op',
+  'Mi sala (#{x})': 'Phòng của tôi (#{x})',
+  'Código de sala (ej: PK42)': 'Mã phòng (VD: PK42)',
+  'Unirse con código': 'Vào bằng mã',
+  'Escribe el código de la sala.': 'Hãy nhập mã phòng.',
+  'Salas abiertas en vivo': 'Phòng đang mở trực tiếp',
+  'No hay salas públicas abiertas ahora. ¡Crea una sala Co-op arriba!':
+    'Hiện chưa có phòng công khai nào đang mở. Hãy nhấn "Tạo phòng Co-op" ở trên!',
+  'Entrenadores en línea': 'Người chơi đang Online',
+  'No hay otros entrenadores conectados en este momento.':
+    'Hiện chưa có người chơi nào khác đang trực tuyến.',
+  'Tus amigos': 'Danh sách bạn bè',
+  'Aún no tienes amigos añadidos. Escribe arriba el apodo de un amigo o invítalo desde Entrenadores en línea.':
+    'Bạn chưa thêm bạn bè nào. Hãy nhập biệt danh ở trên hoặc mời trực tiếp từ danh sách Người chơi đang Online.',
+  'Servidor Co-op en vivo': 'Máy chủ Co-op Trực tuyến',
+  'Modo Co-op Local': 'Chế độ Co-op Cục bộ',
+  '· Tu apodo:': '· Biệt danh của bạn:',
+  '· compártelo o crea una sala con código.': '· hãy chia sẻ biệt danh hoặc tạo phòng có mã.',
+  'En sala #{x}': 'Đang ở phòng #{x}',
+  'Unirse': 'Vào phòng',
+  '+ Amigo': '+ Kết bạn',
+  '{x} sala abierta': '{x} phòng đang mở',
+  '{x} salas abiertas': '{x} phòng đang mở',
+  '{x} sala abierta · {x} en línea': '{x} phòng đang mở · {x} trực tuyến',
+  '{x} salas abiertas · {x} en línea': '{x} phòng đang mở · {x} trực tuyến',
+  'Sala Cooperativa': 'Phòng Chơi Chung (Co-op)',
+  'Código:': 'Mã phòng:',
+  'Copiar código': 'Sao chép mã',
+  'Copiar enlace': 'Sao chép link mời',
+  'Abrir pestaña Co-op': 'Mở tab Co-op thứ 2',
+  'Abre otra pestaña conectada a esta misma sala para probar el cooperativo':
+    'Mở thêm một tab trình duyệt mới tự động kết nối vào phòng này để chơi thử Co-op',
+  'Cambiar Pokémon': 'Đổi Pokémon',
+  'Código copiado: {x}': 'Đã sao chép mã phòng: {x}',
+  'Enlace de invitación copiado': 'Đã sao chép đường dẫn mời vào phòng',
+  'Eres el anfitrión. Comparte el código #{x} o invita a tus amigos (hasta {x}) y empezad cuando estéis.':
+    'Bạn là chủ phòng. Hãy chia sẻ mã #{x} hoặc mời bạn bè (tối đa {x} người) và bắt đầu khi sẵn sàng.',
+  'Estás en la sala #{x} de {x}. El anfitrión empezará la partida.':
+    'Bạn đang ở trong phòng #{x} của {x}. Chủ phòng sẽ bắt đầu trận đấu.',
+  'Tú (Listo)': 'Bạn (Sẵn sàng)',
+  'Chat de la sala': 'Trò chuyện trong phòng',
+  '¡Listo! 🔥': 'Sẵn sàng! 🔥',
+  '¡Listo para jugar! 🔥': 'Sẵn sàng chiến đấu! 🔥',
+  '¡Vamos! ⚡': 'Chiến thôi! ⚡',
+  '¡Vamos equipo! ⚡': 'Lên đường thôi cả đội! ⚡',
+  'Espera ⏳': 'Chờ chút ⏳',
+  'Esperad un momento ⏳': 'Đợi mình một chút nhé ⏳',
+  '¡Hola! 👋': 'Xin chào! 👋',
+  '¡Hola a todos! 👋': 'Xin chào mọi người! 👋',
+  'Saluda a tu equipo o usa las frases rápidas de arriba.':
+    'Hãy gửi lời chào tới đồng đội hoặc nhấn các nút chat nhanh ở trên.',
+  'Escribe un mensaje al equipo…': 'Nhập tin nhắn gửi cho cả đội…',
+  'Enviar': 'Gửi',
+  'Invitar jugadores en línea': 'Mời người chơi đang Online',
+  'Ningún jugador libre ahora mismo. Usa "Abrir pestaña Co-op" arriba para probar en otra pestaña.':
+    'Chưa có người chơi rảnh lúc này. Hãy nhấn "Mở tab Co-op thứ 2" ở trên để test chơi chung ngay trên máy!',
+  'Necesitas al menos un compañero en la sala (puedes pulsar "Abrir pestaña Co-op" arriba para unirte desde otra pestaña).':
+    'Cần ít nhất 2 người trong phòng để bắt đầu (bạn có thể nhấn "Mở tab Co-op thứ 2" ở trên để vào thêm từ tab khác).'
 });

@@ -361,34 +361,110 @@
   </div>
 </section>
 
-<!-- ====== Amigos ====== -->
+<!-- ====== Amigos y Cooperativo Online ====== -->
 <section id="scr-friends" class="scr dim hidden">
-  <div class="box wide">
-    <div class="row between"><h2>Amigos</h2>
-      <div class="row"><button id="fr-room" class="btn small gold hidden">Ir a la sala</button><button class="btn small ghost" data-back>Volver</button></div></div>
-    <p class="sub" id="fr-me"></p>
-    <form id="fr-add" class="row" autocomplete="off">
-      <input id="fr-name" class="field grow" maxlength="16" spellcheck="false" placeholder="Apodo de tu amigo">
-      <button class="btn gold" type="submit" data-sfx="confirm">Añadir amigo</button>
-    </form>
-    <p id="fr-msg" class="note"></p>
-    <div id="fr-list" class="fr-list"></div>
+  <div class="box wide coop-social-box">
+    <div class="row between wrap" style="gap:8px">
+      <h2>Amigos y Cooperativo</h2>
+      <div class="row wrap" style="gap:6px">
+        <button id="fr-nick-btn" class="btn small ghost" type="button">Cambiar apodo</button>
+        <button id="fr-room" class="btn small gold hidden" type="button">Ir a la sala</button>
+        <button class="btn small ghost" data-back type="button">Volver</button>
+      </div>
+    </div>
+    <p class="sub" id="fr-me" style="margin:4px 0 10px"></p>
+
+    <!-- Panel rápido de Salas Cooperativas -->
+    <div class="coop-hub-bar">
+      <button id="fr-create-room" class="btn gold coop-create-btn" type="button" data-sfx="confirm">Crear sala Co-op</button>
+      <form id="fr-join-form" class="row coop-join-form" autocomplete="off">
+        <input id="fr-room-code" class="field coop-code-input" maxlength="12" spellcheck="false" placeholder="Código de sala (ej: PK42)">
+        <button id="fr-join-btn" class="btn" type="submit" data-sfx="confirm">Unirse con código</button>
+      </form>
+    </div>
+
+    <p id="fr-msg" class="note" style="margin:6px 0"></p>
+
+    <div class="coop-columns">
+      <div class="coop-col">
+        <div class="coop-sec-head">
+          <h3>Salas abiertas en vivo</h3>
+          <span id="fr-rooms-count" class="coop-pill-count" translate="no">0</span>
+        </div>
+        <div id="fr-open-rooms" class="fr-list coop-rooms-list"></div>
+
+        <div class="coop-sec-head" style="margin-top:12px">
+          <h3>Entrenadores en línea</h3>
+          <span id="fr-online-count" class="coop-pill-count" translate="no">0</span>
+        </div>
+        <div id="fr-online-list" class="fr-list coop-online-list"></div>
+      </div>
+
+      <div class="coop-col">
+        <div class="coop-sec-head">
+          <h3>Tus amigos</h3>
+        </div>
+        <form id="fr-add" class="row" autocomplete="off" style="margin-bottom:8px">
+          <input id="fr-name" class="field grow" maxlength="16" spellcheck="false" placeholder="Apodo de tu amigo">
+          <button class="btn gold small" type="submit" data-sfx="confirm">Añadir amigo</button>
+        </form>
+        <div id="fr-list" class="fr-list"></div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- ====== Sala (partida en grupo) ====== -->
 <section id="scr-lobby" class="scr dim hidden">
-  <div class="box wide">
-    <div class="row between"><h2>Sala</h2>
-      <div class="row"><button id="lobby-menu" class="btn small ghost">Menú</button><button id="lobby-leave" class="btn small ghost">Salir de la sala</button></div></div>
-    <p class="sub" id="lobby-sub"></p>
-    <div id="lobby-members" class="lobby-members"></div>
-    <h3 id="lobby-inv-title" style="margin:14px 0 6px">Invitar amigos</h3>
-    <div id="lobby-invite" class="fr-list"></div>
-    <div class="row" style="margin-top:14px">
-      <button id="lobby-start" class="btn gold grow">Empezar partida</button>
+  <div class="box wide lobby-box">
+    <div class="row between wrap" style="gap:8px">
+      <div class="row wrap" style="gap:10px">
+        <h2 style="margin:0">Sala Cooperativa</h2>
+        <div id="lobby-code-bar" class="lobby-code-bar">
+          <span class="sub" style="margin:0">Código:</span>
+          <strong id="lobby-code-val" class="room-code-badge" translate="no">----</strong>
+          <button id="lobby-copy-code" class="btn small ghost" type="button">Copiar código</button>
+          <button id="lobby-copy-link" class="btn small ghost" type="button">Copiar enlace</button>
+          <button id="lobby-open-tab" class="btn small gold" type="button" title="Abre otra pestaña conectada a esta misma sala para probar el cooperativo">Abrir pestaña Co-op</button>
+        </div>
+      </div>
+      <div class="row wrap" style="gap:6px">
+        <button id="lobby-change-mon" class="btn small" type="button">Cambiar Pokémon</button>
+        <button id="lobby-menu" class="btn small ghost" type="button">Menú</button>
+        <button id="lobby-leave" class="btn small ghost" type="button">Salir de la sala</button>
+      </div>
     </div>
-    <p class="note" id="lobby-note"></p>
+    <p class="sub" id="lobby-sub" style="margin:6px 0 10px"></p>
+    <div id="lobby-members" class="lobby-members"></div>
+
+    <div class="lobby-bottom-split">
+      <div class="lobby-chat-wrap">
+        <div class="row between" style="margin-bottom:6px">
+          <h3 style="margin:0">Chat de la sala</h3>
+          <div class="lobby-emotes" id="lobby-emotes">
+            <button type="button" class="chip emote-chip" data-msg="¡Listo para jugar! 🔥">¡Listo! 🔥</button>
+            <button type="button" class="chip emote-chip" data-msg="¡Vamos equipo! ⚡">¡Vamos! ⚡</button>
+            <button type="button" class="chip emote-chip" data-msg="Esperad un momento ⏳">Espera ⏳</button>
+            <button type="button" class="chip emote-chip" data-msg="¡Hola a todos! 👋">¡Hola! 👋</button>
+          </div>
+        </div>
+        <div id="lobby-chat-log" class="lobby-chat-log"></div>
+        <form id="lobby-chat-form" class="row" autocomplete="off" style="margin-top:6px">
+          <input id="lobby-chat-in" class="field grow" maxlength="140" spellcheck="false" placeholder="Escribe un mensaje al equipo…">
+          <button class="btn small gold" type="submit">Enviar</button>
+        </form>
+      </div>
+
+      <div class="lobby-inv-wrap">
+        <h3 id="lobby-inv-title" style="margin:0 0 6px">Invitar jugadores en línea</h3>
+        <div id="lobby-invite" class="fr-list"></div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button id="lobby-start" class="btn gold grow" type="button">Empezar partida</button>
+    </div>
+    <p class="note" id="lobby-note" style="margin:6px 0 0"></p>
   </div>
 </section>
 

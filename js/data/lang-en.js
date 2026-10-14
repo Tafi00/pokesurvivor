@@ -654,5 +654,65 @@ G.I18n.add({
   'mapa ·': 'map ·',
   'pausa': 'pause',
   'Arrastra el dedo para moverte · toca un ataque, AUTO o DASH':
-    'Drag your finger to move · tap an attack, AUTO or DASH'
+    'Drag your finger to move · tap an attack, AUTO or DASH',
+
+  // Online Co-op, Rooms, Lobby & Chat
+  'Amigos y Cooperativo': 'Friends & Co-op',
+  'Cambiar apodo': 'Change nickname',
+  'Crear sala Co-op': 'Create Co-op Room',
+  'Mi sala (#{x})': 'My Room (#{x})',
+  'Código de sala (ej: PK42)': 'Room code (e.g. PK42)',
+  'Unirse con código': 'Join with code',
+  'Escribe el código de la sala.': 'Enter the room code.',
+  'Salas abiertas en vivo': 'Live Open Rooms',
+  'No hay salas públicas abiertas ahora. ¡Crea una sala Co-op arriba!':
+    'No public rooms open right now. Create a Co-op room above!',
+  'Entrenadores en línea': 'Online Trainers',
+  'No hay otros entrenadores conectados en este momento.':
+    'No other trainers connected right now.',
+  'Tus amigos': 'Your Friends',
+  'Aún no tienes amigos añadidos. Escribe arriba el apodo de un amigo o invítalo desde Entrenadores en línea.':
+    'No friends added yet. Type a friend\'s nickname above or invite someone from Online Trainers.',
+  'Servidor Co-op en vivo': 'Live Co-op Server',
+  'Modo Co-op Local': 'Local Co-op Mode',
+  '· Tu apodo:': '· Your nickname:',
+  '· compártelo o crea una sala con código.': '· share it or create a room with a code.',
+  'En sala #{x}': 'In room #{x}',
+  'Unirse': 'Join',
+  '+ Amigo': '+ Friend',
+  '{x} sala abierta': '{x} open room',
+  '{x} salas abiertas': '{x} open rooms',
+  'Sala Cooperativa': 'Co-op Room',
+  'Código:': 'Code:',
+  'Copiar código': 'Copy code',
+  'Copiar enlace': 'Copy link',
+  'Abrir pestaña Co-op': 'Open Co-op Tab',
+  'Abre otra pestaña conectada a esta misma sala para probar el cooperativo':
+    'Open another browser tab connected to this room to test Co-op',
+  'Cambiar Pokémon': 'Change Pokémon',
+  'Código copiado: {x}': 'Code copied: {x}',
+  'Enlace de invitación copiado': 'Invite link copied',
+  'Eres el anfitrión. Comparte el código #{x} o invita a tus amigos (hasta {x}) y empezad cuando estéis.':
+    'You are the host. Share code #{x} or invite your friends (up to {x}) and start when ready.',
+  'Estás en la sala #{x} de {x}. El anfitrión empezará la partida.':
+    'You are in {x}\'s room #{x}. The host will start the run.',
+  'Tú (Listo)': 'You (Ready)',
+  'Chat de la sala': 'Room Chat',
+  '¡Listo! 🔥': 'Ready! 🔥',
+  '¡Listo para jugar! 🔥': 'Ready to play! 🔥',
+  '¡Vamos! ⚡': 'Let\'s go! ⚡',
+  '¡Vamos equipo! ⚡': 'Let\'s go team! ⚡',
+  'Espera ⏳': 'Wait ⏳',
+  'Esperad un momento ⏳': 'Wait a moment ⏳',
+  '¡Hola! 👋': 'Hello! 👋',
+  '¡Hola a todos! 👋': 'Hello everyone! 👋',
+  'Saluda a tu equipo o usa las frases rápidas de arriba.':
+    'Say hi to your team or use the quick emotes above.',
+  'Escribe un mensaje al equipo…': 'Write a message to the team…',
+  'Enviar': 'Send',
+  'Invitar jugadores en línea': 'Invite Online Players',
+  'Ningún jugador libre ahora mismo. Usa "Abrir pestaña Co-op" arriba para probar en otra pestaña.':
+    'No free players right now. Use "Open Co-op Tab" above to test in another tab.',
+  'Necesitas al menos un compañero en la sala (puedes pulsar "Abrir pestaña Co-op" arriba para unirte desde otra pestaña).':
+    'You need at least one teammate in the room (click "Open Co-op Tab" above to join from another tab).'
 });

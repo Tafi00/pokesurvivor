@@ -23,18 +23,15 @@
 G.Net = (() => {
   const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
                { urls: 'stun:stun.cloudflare.com:3478' }];
-  const DIRECT_TIMEOUT = 9000;     // ms para conseguir canal directo antes de usar el relé
-  // Relé por la Realtime Database APAGADO (12-10-2026): a 1 $ el GB era lo que más
-  // costaba del cooperativo. Sin conexión directa ni TURN, esa pareja no puede jugar
-  // junta ('failed') y el anfitrión lo reintenta cada RETRY_MS. Por la base de datos
-  // sólo pasa la señalización (unos pocos mensajes pequeños para conectarse).
-  const ALLOW_RELAY = false, RETRY_MS = 15000;
+  const DIRECT_TIMEOUT = 800;     // ms para conseguir canal directo antes de usar el relé rápido
+  const ALLOW_RELAY = true, RETRY_MS = 8000;
 
   // ---------------- TURN (Cloudflare) ----------------
   const TURN_URL = 'https://turn.pokesurvivor.com/';
   let turn = null, turnAt = 0, turnReq = null;
   /** Pide (o reutiliza) credenciales TURN. Nunca falla: sin ellas, se sigue como antes. */
   function fetchTurn() {
+    if (window.firebase && window.firebase.__psLocalHub) return Promise.resolve(null);
     const fb = G.DB.fb;
     if (!fb || fb.emulator || !fb.auth || !fb.auth.currentUser) return Promise.resolve(null);
     if (turn && Date.now() - turnAt < (turn.ttl - 600) * 1000) return Promise.resolve(turn);
@@ -55,7 +52,7 @@ G.Net = (() => {
   const iceServers = () => (turn ? ICE.concat(turn.servers) : ICE);
 
   let rtdb = null, uid = null, roomId = null, isHost = false, hostUid = null;
-  let qref = null;
+  let qref = null, offDirect = null;
   const peers = new Map();         // uid -> { pc, dc, mode, timer }
   const handlers = new Set(), peerHandlers = new Set();
   let stats = { sent: 0, recv: 0, relaySent: 0 };
@@ -63,6 +60,12 @@ G.Net = (() => {
   function emitPeer(u) {
     const p = peers.get(u);
     peerHandlers.forEach(fn => { try { fn(u, p ? p.mode : 'closed'); } catch (e) { console.warn(e); } });
+  }
+
+  function handleEnvelope(m) {
+    if (!m || !m.f || m.f === uid) return;
+    if (m.sig) onSignal(m.f, m.sig);
+    else deliver(m.f, m.d);
   }
 
   // ---------------- apertura ----------------
@@ -74,27 +77,37 @@ G.Net = (() => {
     rtdb = fb.rtdb; uid = fb.uid;
     roomId = id; isHost = host; hostUid = hostId;
     fetchTurn();                    // se piden ya, para tenerlas al conectar
+    if (G.OnlineHub && G.OnlineHub.onDirect) {
+      offDirect = G.OnlineHub.onDirect((fromUid, rId, env) => {
+        if (rId !== roomId) return;
+        let m = env;
+        if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { return; } }
+        handleEnvelope(m);
+      });
+    }
     qref = rtdb.ref('rooms/' + id + '/q/' + uid);
     qref.on('child_added', s => {
       const raw = s.val();
       s.ref.remove().catch(() => {});
       let m;
-      try { m = JSON.parse(raw); } catch (e) { return; }
-      if (!m || !m.f) return;
-      if (m.sig) onSignal(m.f, m.sig);
-      else deliver(m.f, m.d);
+      try { m = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
+      handleEnvelope(m);
     });
     // Invitado: hueco para el anfitrión desde ya (se sustituye al llegar su
     // oferta). Así, si no llega nunca, se sigue por el relé y se sabe cuándo se va.
     if (!isHost) {
-      const p = { pc: null, dc: null, mode: 'connecting', timer: 0 };
-      p.timer = setTimeout(() => { if (p.mode === 'connecting') { p.mode = ALLOW_RELAY ? 'relay' : 'failed'; emitPeer(hostId); } }, DIRECT_TIMEOUT + 3000);
+      const p = { pc: null, dc: null, mode: G.OnlineHub ? 'direct' : 'connecting', timer: 0 };
+      if (!G.OnlineHub) {
+        p.timer = setTimeout(() => { if (p.mode === 'connecting') { p.mode = ALLOW_RELAY ? 'relay' : 'failed'; emitPeer(hostId); } }, DIRECT_TIMEOUT + 500);
+      }
       peers.set(hostId, p);
+      emitPeer(hostId);
     }
   }
 
   function close() {
     for (const u of [...peers.keys()]) drop(u);
+    if (offDirect) { offDirect(); offDirect = null; }
     if (qref) { qref.off(); qref = null; }
     roomId = null; isHost = false; hostUid = null;
   }
@@ -113,7 +126,7 @@ G.Net = (() => {
   // ---------------- WebRTC ----------------
 
   function newPeer(u) {
-    const p = { pc: null, dc: null, mode: 'connecting', timer: 0 };
+    const p = { pc: null, dc: null, mode: G.OnlineHub ? 'direct' : 'connecting', timer: 0 };
     peers.set(u, p);
     // Sin WebRTC (navegador antiguo o bloqueado): directamente por el relé.
     let pc;
@@ -157,8 +170,12 @@ G.Net = (() => {
 
   function useRelay(u) {
     const p = peers.get(u);
-    if (!p || p.mode === 'direct' || p.mode === 'closed' || p.mode === 'failed') return;
-    if (ALLOW_RELAY) { p.mode = 'relay'; emitPeer(u); return; }
+    if (!p || p.mode === 'closed' || p.mode === 'failed') return;
+    if (ALLOW_RELAY) {
+      p.mode = G.OnlineHub ? 'direct' : 'relay';
+      emitPeer(u);
+      return;
+    }
     // Sin relé: no se puede jugar con esa persona por ahora. El anfitrión reintenta.
     clearTimeout(p.timer);
     p.mode = 'failed';
@@ -227,7 +244,12 @@ G.Net = (() => {
   // ---------------- envío / recepción ----------------
 
   function relayPush(to, env) {
-    if (!rtdb || !roomId) return;
+    if (!roomId) return;
+    if (G.OnlineHub && G.OnlineHub.sendDirect) {
+      G.OnlineHub.sendDirect(roomId, to, env);
+      return;
+    }
+    if (!rtdb) return;
     rtdb.ref('rooms/' + roomId + '/q/' + to).push(JSON.stringify(env)).catch(e => console.warn('[Net] relé:', e.code || e.message));
   }
 
@@ -259,7 +281,7 @@ G.Net = (() => {
     onPeer(fn) { peerHandlers.add(fn); },
     mode(u) { const p = peers.get(u); return p ? p.mode : 'closed'; },
     /** ¿Va por el relé (o no hay conexión)? Entonces se manda menos a menudo. */
-    slow(u) { const p = peers.get(u); return !p || p.mode !== 'direct'; },
+    slow(u) { if (G.OnlineHub) return false; const p = peers.get(u); return !p || p.mode !== 'direct'; },
     /** ¿Va directo pero a través del TURN de Cloudflare? (se manda algo menos) */
     viaTurn(u) { const p = peers.get(u); return !!p && p.mode === 'direct' && !!p.turn; },
     peers() { return [...peers.keys()]; },

@@ -21,7 +21,16 @@ G.MenuUI = (() => {
         else if (go === 'settings') G.SettingsUI.open();
       };
     });
-    document.querySelectorAll('[data-back]').forEach(b => { b.onclick = open; });
+    document.querySelectorAll('[data-back]').forEach(b => {
+      b.onclick = () => {
+        if (window.__returnToLobby && G.Social && G.Social.room) {
+          window.__returnToLobby = false;
+          G.LobbyUI.open();
+        } else {
+          open();
+        }
+      };
+    });
     G.Social.on(() => { if (G.UI.isOpen('scr-menu')) socialLine(); });
     $('btn-logout').onclick = () => {
       G.Audio.music(null);
@@ -91,11 +100,13 @@ G.MenuUI = (() => {
     const fr = G.Social.friends;
     const on = fr.filter(f => f.status === 'ok' && f.online).length;
     const req = fr.filter(f => f.status === 'in').length;
+    const rms = G.Social.openRooms ? G.Social.openRooms().length : 0;
     const parts = [];
+    if (rms) parts.push(rms + (rms === 1 ? ' sala abierta' : ' salas abiertas'));
     if (on) parts.push(on + ' en línea');
     if (req) parts.push(req + (req === 1 ? ' solicitud' : ' solicitudes'));
     $('menu-friends-sub').textContent = parts.length ? parts.join(' · ') : 'Juega en grupo, hasta 4';
-    $('menu-friends-sub').classList.toggle('gold', req > 0);
+    $('menu-friends-sub').classList.toggle('gold', req > 0 || rms > 0);
   }
 
   // ---------------- colección ----------------
@@ -285,6 +296,7 @@ G.MenuUI = (() => {
       s.partner = dex;
       s.partnerShiny = hasSh && viewShiny;
       G.DB.commit();
+      if (G.Social && G.Social.room) G.Social.refreshMember();
       G.UI.toast(p.name + (s.partnerShiny ? ' shiny' : '') + ' es ahora tu compañero');
       renderGrid(); showDetail(dex);
     };
