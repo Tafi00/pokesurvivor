@@ -621,9 +621,16 @@ G.FIREBASE_CONFIG = {
       // Si la URL pide explícitamente una pestaña nueva de prueba (?newtab=1), no reusar sesión
       if (/[?&]newtab=1\b/.test(location.search)) return;
       const ss = sessionStorage.getItem(SS_AUTH);
-      if (ss) { currentUser = JSON.parse(ss); return; }
-      const ls = localStorage.getItem(LS_AUTH);
-      if (ls) { currentUser = JSON.parse(ls); }
+      if (ss) { currentUser = JSON.parse(ss); }
+      else {
+        const ls = localStorage.getItem(LS_AUTH);
+        if (ls) currentUser = JSON.parse(ls);
+      }
+      if (currentUser && (/^google_\d+$/.test(currentUser.uid || '') || String(currentUser.email || '').endsWith('@google.local'))) {
+        currentUser = null;
+        sessionStorage.removeItem(SS_AUTH);
+        localStorage.removeItem(LS_AUTH);
+      }
     } catch (e) {}
   }
   loadInitialAuth();

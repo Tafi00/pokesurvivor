@@ -1107,12 +1107,12 @@ const server = http.createServer((req, res) => {
   const rawUrl = (req.url || '/').split('?')[0];
 
   // Ventana emergente de inicio de sesión con Google (OAuth 2.0 + Selector de Cuentas Google)
-  if (rawUrl === '/auth/google' && req.method === 'GET') {
+  if (rawUrl === '/auth/google' && (req.method === 'GET' || req.method === 'HEAD')) {
     const q = (req.url || '').split('?')[1] || '';
     const params = new URLSearchParams(q);
     const lang = params.get('lang') || 'vi';
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(renderGooglePopupHtml(lang));
+    res.end(req.method === 'HEAD' ? '' : renderGooglePopupHtml(lang));
     return;
   }
 
