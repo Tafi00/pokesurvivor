@@ -35,8 +35,8 @@ G.Combat = (() => {
       pl.autoDwell = (pl.autoDwell || 0) + dt;
       const curGroup = pl.activeGroup();
       const continuous = curGroup.every(m => m.kind === 'orbit' || m.kind === 'trail');
-      const fired = !continuous && curGroup.every(m => m.t > 0.12);
-      if ((fired && pl.autoDwell >= 0.48) || (continuous && pl.autoDwell >= 1.75) || pl.autoDwell >= 2.2) {
+      const fired = !continuous && curGroup.every(m => m.t > 0.10);
+      if ((fired && pl.autoDwell >= 0.32) || (continuous && pl.autoDwell >= 1.35) || pl.autoDwell >= 1.6) {
         const n = pl.slots.length;
         for (let off = 1; off < n; off++) {
           const idx = (pl.active + off) % n;
@@ -698,12 +698,12 @@ G.Combat = (() => {
     for (const e of G.EnemyMgr.queryCircle(pl.x, pl.y, pl.r + 40)) {
       if (G.U.dist2(e.x, e.y, pl.x, pl.y) > (e.r + pl.r) * (e.r + pl.r)) continue;
       if (e.touchCd > 0 || e.behavior === 'thief') continue;
-      e.touchCd = 0.55;
+      e.touchCd = 0.7;
       e.strike(pl);
       pl.hurt(e.dmg, e.atkType);
-      if (pl.hasItem('rockyhelmet')) e.hurt(15 + pl.level * 4, '#9aa6b5', e.x - pl.x, e.y - pl.y, 80);
+      if (pl.hasItem('rockyhelmet')) e.hurt(18 + pl.level * 5, '#9aa6b5', e.x - pl.x, e.y - pl.y, 90);
       const [nx, ny] = G.U.norm(e.x - pl.x, e.y - pl.y);
-      e.kx += nx * 150; e.ky += ny * 150;
+      e.kx += nx * 185; e.ky += ny * 185;
     }
   }
 

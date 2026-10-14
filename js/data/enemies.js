@@ -32,21 +32,21 @@
  */
 G.Enemies = (() => {
   const TIERS = [
-    { from: 0,   bst: [180, 330], hp: 17,  spd: 56, dmg: 6,  xp: 3.5, cast: 7 },
-    { from: 70,  bst: [300, 405], hp: 32,  spd: 62, dmg: 8.5, xp: 5,  cast: 7 },
-    { from: 160, bst: [385, 465], hp: 52,  spd: 60, dmg: 11, xp: 8,  cast: 7 },
-    { from: 260, bst: [445, 515], hp: 88,  spd: 70, dmg: 14, xp: 13, cast: 7 },
-    { from: 380, bst: [495, 560], hp: 150, spd: 66, dmg: 22, xp: 24, cast: 7 },
-    { from: 500, bst: [530, 620], hp: 250, spd: 72, dmg: 28, xp: 38, cast: 7 }
+    { from: 0,   bst: [180, 330], hp: 16,  spd: 61, dmg: 5.5, xp: 4,   cast: 7 },
+    { from: 60,  bst: [300, 405], hp: 29,  spd: 67, dmg: 7.5, xp: 6,   cast: 7 },
+    { from: 140, bst: [385, 465], hp: 46,  spd: 66, dmg: 10,  xp: 9.5, cast: 7 },
+    { from: 230, bst: [445, 515], hp: 78,  spd: 75, dmg: 12.5,xp: 15,  cast: 7 },
+    { from: 340, bst: [495, 560], hp: 132, spd: 72, dmg: 19,  xp: 26,  cast: 7 },
+    { from: 450, bst: [530, 620], hp: 215, spd: 78, dmg: 24,  xp: 42,  cast: 7 }
   ];
 
-  // Franjas de jefe: minuto en que salen, PV base y franja de BST.
+  // Franjas de jefe: salen cada 2,5 min para dar mayor ritmo a la partida.
   const BOSS_SLOTS = [
-    { at: 180, hp: 1400,  dmg: 34, xp: 220,  bst: [490, 545] },
-    { at: 360, hp: 3200,  dmg: 42, xp: 420,  bst: [520, 580] },
-    { at: 540, hp: 5600,  dmg: 48, xp: 680,  bst: [540, 600] },
-    { at: 720, hp: 9000,  dmg: 56, xp: 1000, bst: [580, 700] },
-    { at: 900, hp: 16000, dmg: 68, xp: 1800, bst: [600, 700] }
+    { at: 150, hp: 1250,  dmg: 30, xp: 260,  bst: [490, 545] },
+    { at: 300, hp: 2800,  dmg: 36, xp: 480,  bst: [520, 580] },
+    { at: 450, hp: 4800,  dmg: 42, xp: 780,  bst: [540, 600] },
+    { at: 600, hp: 7600,  dmg: 48, xp: 1150, bst: [580, 700] },
+    { at: 750, hp: 13000, dmg: 58, xp: 2000, bst: [600, 700] }
   ];
 
   // Stats base aproximados a partir de los de juego (inverso de fetch_pokedex).
@@ -161,11 +161,10 @@ G.Enemies = (() => {
       used.add(p.dex);
       return {
         at: slot.at, dex: p.dex, name: p.name,
-        // (Desde 2026-10-10 más duros: ×1,35 de vida y ×1,2 de daño.)
-        hp: Math.round(slot.hp * 1.35), spd: Math.round(G.U.clamp(40 + baseSpd(p) * 0.5, 40, 100)),
-        dmg: Math.round(slot.dmg * 1.2), xp: slot.xp,
+        hp: Math.round(slot.hp * 1.05), spd: Math.round(G.U.clamp(44 + baseSpd(p) * 0.52, 44, 105)),
+        dmg: Math.round(slot.dmg * 0.95), xp: Math.round(slot.xp * 1.2),
         behavior: behaviorOf(p) === 'ranged' ? 'ranged' : (baseSpd(p) > 90 ? 'charger' : 'chase'),
-        shotDmg: Math.round(slot.dmg * 0.55), shotCd: 1.1, range: 260
+        shotDmg: Math.round(slot.dmg * 0.48), shotCd: 1.15, range: 260
       };
     });
     return { cast, bosses };
@@ -174,14 +173,14 @@ G.Enemies = (() => {
   // (El "tiempo extra" del minuto 60 se quitó al llegar la Sentencia de Arceus,
   //  que acaba todas las partidas en el minuto 30: ver systems/judgment.js.)
   function scale(t) {
-    return { hp: 1 + t / 95, dmg: 1 + t / 420, spd: 1 + Math.min(0.35, t / 1400) };
+    return { hp: 1 + t / 115, dmg: 1 + t / 500, spd: 1 + Math.min(0.42, t / 1100) };
   }
 
   /**
-   * Los jefes ya traen su vida base creciente (1.400 ... 16.000), así que
-   * escalan mucho más suave: con la curva normal el último llegaba a 168.000 PV.
+   * Los jefes ya traen su vida base creciente (1.250 ... 13.000), así que
+   * escalan mucho más suave.
    */
-  function bossScale(t) { return { hp: 1 + t / 600, dmg: 1 + t / 600, spd: 1 }; }
+  function bossScale(t) { return { hp: 1 + t / 700, dmg: 1 + t / 700, spd: 1 }; }
 
   /** Tramo que toca en el segundo `t`. */
   function tierAt(t) { let ti = 0; TIERS.forEach((tr, i) => { if (t >= tr.from) ti = i; }); return ti; }

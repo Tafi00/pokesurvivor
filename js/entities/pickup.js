@@ -26,7 +26,7 @@ G.Pickups = (() => {
   /** Probabilidad de que un Pokémon normal suelte un ticket del gacha. */
   const BOSS_T10 = 1 / 3;               // ticket ×10 de un jefe normal
   const LEGEND_T10 = 1 / 2;             // ticket ×10 del legendario de la grieta
-  const TICKET_RATE = 1 / 400;          // (antes 1/260; más raros desde 2026-10-10)
+  const TICKET_RATE = 1 / 280;
 
   function clear() { list = []; }
   function all() { return list; }
@@ -88,11 +88,11 @@ G.Pickups = (() => {
     push(orb(value >= 20 ? 'xpBig' : 'xp', x, y, value));
     if (Math.random() < TICKET_RATE) push(orb('ticket', x + G.U.rand(-6, 6), y, 1));
 
-    // Drops ocasionales.
+    // Drops ocasionales más frecuentes para mantener el ritmo alto.
     const r = Math.random();
-    if (r < 0.012) push(orb('heal', x + G.U.rand(-8, 8), y, 0));
-    else if (r < 0.020) push(orb('magnet', x, y, 0));
-    else if (r < 0.026) push(orb('bomb', x, y, 0));
+    if (r < 0.018) push(orb('heal', x + G.U.rand(-8, 8), y, 0));
+    else if (r < 0.028) push(orb('magnet', x, y, 0));
+    else if (r < 0.036) push(orb('bomb', x, y, 0));
   }
 
   /** Suelta un objeto suelto: 'heal' | 'magnet' | 'bomb' | 'coin'. */
@@ -110,9 +110,9 @@ G.Pickups = (() => {
   }
 
   /**
-   * @param players  un jugador o la lista de jugadores (los caídos no recogen)
-   * @param onCollect(pickup, jugador)
-   */
+    * @param players  un jugador o la lista de jugadores (los caídos no recogen)
+    * @param onCollect(pickup, jugador)
+    */
   function update(dt, players, onCollect) {
     if (!Array.isArray(players)) players = [players];
     for (let i = list.length - 1; i >= 0; i--) {
@@ -133,9 +133,9 @@ G.Pickups = (() => {
       if (p.pulled || d2 < mag2) {
         p.pulled = true;
         const d = Math.sqrt(d2) || 1;
-        const pull = 240 + 1400 / d;
-        p.vx = G.U.damp(p.vx, (dx / d) * pull, 7, dt);
-        p.vy = G.U.damp(p.vy, (dy / d) * pull, 7, dt);
+        const pull = 300 + 1650 / d;
+        p.vx = G.U.damp(p.vx, (dx / d) * pull, 9, dt);
+        p.vy = G.U.damp(p.vy, (dy / d) * pull, 9, dt);
       } else {
         p.vx *= Math.pow(0.02, dt);
         p.vy *= Math.pow(0.02, dt);

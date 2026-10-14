@@ -44,8 +44,8 @@ G.Coop = (() => {
 
   // ---------------- escalado de dificultad ----------------
 
-  const scaleRate = n => 1 + 0.75 * Math.max(0, n - 1);
-  const scaleHp = n => 1 + 0.3 * Math.max(0, n - 1);
+  const scaleRate = n => 1 + 0.7 * Math.max(0, n - 1);
+  const scaleHp = n => 1 + 0.2 * Math.max(0, n - 1);
 
   // ---------------- arranque / fin ----------------
 
@@ -71,7 +71,7 @@ G.Coop = (() => {
       const p = new G.Player(mon, {}, !!m.shiny);
       p.remote = true; p.uid = m.uid; p.tag = m.name; p.tagColor = COLORS[i]; p.revLabel = 'Quédate a su lado';
       p.x = x; p.y = y;
-      p.net = { x, y, ang: Math.PI / 2, walk: 0, hp: p.maxHp, maxHp: p.maxHp, dead: 0, mv: G.startMoveOf(mon.dex), ml: 1, mag: 78, aim: Math.PI / 2, rev: 0 };
+      p.net = { x, y, ang: Math.PI / 2, walk: 0, hp: p.maxHp, maxHp: p.maxHp, dead: 0, mv: G.startMoveOf(mon.dex), ml: 1, mag: 96, aim: Math.PI / 2, rev: 0 };
       G.Sprites.preload([mon.dex], 8000, p.shiny);
       mates.set(m.uid, { uid: m.uid, name: m.name, color: COLORS[i], pl: p, connected: true, q: [], flushT: 0, xpMul: 1 });
     });
@@ -107,13 +107,12 @@ G.Coop = (() => {
 
   /**
    * Multiplicador de la experiencia del equipo: la media de los bonus de
-   * cada uno, y repartida entre los que sois (en grupo cae mucho más, y si no
-   * se subiría de nivel el triple de rápido que en solitario).
+   * cada uno, y repartida entre los que sois (más generoso para subir de nivel con ritmo).
    */
   function xpFactor() {
     let s = local.xpMul, n = 1;
     for (const m of mates.values()) if (m.connected) { s += m.xpMul || 1; n++; }
-    return (s / n) / local.xpMul / (1 + 0.6 * (n - 1));
+    return (s / n) / local.xpMul / (1 + 0.35 * (n - 1));
   }
 
   // ---------------- estado de un jugador ----------------

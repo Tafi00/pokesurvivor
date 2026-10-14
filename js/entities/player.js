@@ -19,16 +19,16 @@ G.Player = class Player {
 
     this.atkMul = perks.atkMul || 1;
     this.spdMul = perks.spdMul || 1;
-    this.cdMul = perks.cdMul || 1;
+    this.cdMul = 0.88 * (perks.cdMul || 1);
     this.dmgReduce = perks.dmgReduce || 0;
-    this.regenFlat = perks.regen || 0;
-    this.magnet = 78 * (perks.magnetMul || 1);
+    this.regenFlat = (perks.regen || 0) + 0.5;
+    this.magnet = 96 * (perks.magnetMul || 1);
     this.xpMul = perks.xpMul || 1;
     this.coinMul = perks.coinMul || 1;
 
-    this.maxHp = mon.hp + (perks.hp || 0);
+    this.maxHp = Math.round(mon.hp * 1.15) + (perks.hp || 0) + 12;
     this.hp = this.maxHp;
-    this.baseSpd = mon.spd;
+    this.baseSpd = Math.round(mon.spd * 1.12);
     this.baseAtk = mon.atk;
 
     this.moves = [];           // todos los movimientos aprendidos
@@ -75,7 +75,7 @@ G.Player = class Player {
     this.statsTaken = {};      // mejoras de stat cogidas (condición de evolución)
     this.hpTrail = this.maxHp; // barra de daño diferida suave
     this.dashCd = 0;           // enfriamiento del esquive táctico (Espacio/Shift)
-    this.dashMaxCd = 3.6;
+    this.dashMaxCd = 2.6;
     this.dashT = 0;
     this.dashVx = 0; this.dashVy = 0;
     this.afterimages = [];
@@ -89,11 +89,11 @@ G.Player = class Player {
   }
 
   /** Segundos que hay que estar junto a un compañero caído para levantarlo. */
-  static get REVIVE_TIME() { return 3; }
+  static get REVIVE_TIME() { return 2.2; }
 
-  // (×2 y luego ×4 el 2026-10-10: se subía de nivel demasiado rápido.)
+  // Curva de subida de nivel más ágil y dinámica
   static xpFor(level) {
-    return Math.floor((8 + level * 6 + Math.pow(level, 1.75) * 1.6) * 4);
+    return Math.floor((7 + level * 5.2 + Math.pow(level, 1.68) * 1.35) * 2.4);
   }
 
   cy() { return this.y; }
@@ -177,11 +177,11 @@ G.Player = class Player {
     const [ax, ay] = G.Input.axis();
     const ang = (ax !== 0 || ay !== 0) ? Math.atan2(ay, ax) : this.moveAngle || this.aim;
     this.moveAngle = ang;
-    this.dashT = 0.21;
-    this.dashMaxCd = Math.max(1.8, 3.6 * Math.max(0.6, this.cdMul));
+    this.dashT = 0.22;
+    this.dashMaxCd = Math.max(1.4, 2.6 * Math.max(0.55, this.cdMul));
     this.dashCd = this.dashMaxCd;
-    this.invuln = Math.max(this.invuln, 0.28);
-    const sp = Math.max(255, this.spd * 2.9);
+    this.invuln = Math.max(this.invuln, 0.34);
+    const sp = Math.max(275, this.spd * 3.0);
     this.dashVx = Math.cos(ang) * sp;
     this.dashVy = Math.sin(ang) * sp;
     this.ghostTick = 0;
@@ -287,7 +287,7 @@ G.Player = class Player {
     const close = this.activeGroup().some(m => m.kind === 'melee') ? 0.75 : 1;
     const d = pure ? Math.max(1, amount) : Math.max(1, amount * (1 - this.reduction) * close);
     this.hp -= d;
-    this.invuln = 0.45;
+    this.invuln = 0.58;
     this.flash = 0.14;
     G.Audio.sfx('hurt');
     G.Camera.kick(0.28);

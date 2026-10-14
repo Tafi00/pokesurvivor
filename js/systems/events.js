@@ -19,8 +19,8 @@
  * mismo y el premio es para todos.
  */
 G.Events = (() => {
-  const EVERY = [240, 300], DUR = 30, LOST_TIME = 120;
-  const THIEF_FIRST = [120, 240], THIEF_NEXT = [240, 360], THIEF_LIFE = 15;
+  const EVERY = [150, 210], DUR = 32, LOST_TIME = 120;
+  const THIEF_FIRST = [85, 160], THIEF_NEXT = [165, 240], THIEF_LIFE = 18;
   const authority = () => !G.Coop.active || G.Coop.isHost;
 
   let nextT = 0, cur = null, last = null, thiefT = 0, thieves = 0;
@@ -42,7 +42,7 @@ G.Events = (() => {
     if (lost) lostTick(dt, players);
     if (!authority() || G.Rift.inArena || G.Judgment.active) return;
 
-    if (thieves < 2) {
+    if (thieves < 3) {
       thiefT -= dt;
       if (thiefT <= 0) {
         if (G.EnemyMgr.bossAlive()) thiefT = 8;
@@ -108,8 +108,8 @@ G.Events = (() => {
     if (!mon || !G.SPRITE_META[dex]) return;
     const pl = G.U.pick(players.filter(p => !p.dead).length ? players.filter(p => !p.dead) : players);
     G.Sprites.preload([dex]);
-    const def = { dex, name: mon.name, behavior: 'thief', hp: Math.round(60 * (1 + time / 95) * (gold ? 1.5 : 1)),
-                  spd: 92, dmg: 0, xp: 10, loot: gold ? 'ticket10' : 'coins' };
+    const def = { dex, name: mon.name, behavior: 'thief', hp: Math.round(45 * (1 + time / 115) * (gold ? 1.4 : 1)),
+                  spd: 88, dmg: 0, xp: 14, loot: gold ? 'ticket10' : 'coins' };
     for (let i = 0; i < 12; i++) {
       const a = Math.random() * 6.2832, d = G.U.rand(230, 300);
       const x = pl.x + Math.cos(a) * d, y = pl.y + Math.sin(a) * d * 0.8;
